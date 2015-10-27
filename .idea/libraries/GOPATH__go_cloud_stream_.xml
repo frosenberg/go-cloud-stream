@@ -1,0 +1,19 @@
+<component name="libraryTable">
+  <library name="GOPATH &lt;go-cloud-stream&gt;">
+    <CLASSES>
+      <root url="file://$USER_HOME$/go/src/github.com" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+    <excluded>
+      <root url="file://$USER_HOME$/go/src/github.com/codegangsta/cli/.git" />
+      <root url="file://$USER_HOME$/go/src/github.com/garyburd/redigo/.git" />
+      <root url="file://$USER_HOME$/go/src/github.com/gorilla/mux/.git" />
+      <root url="file://$USER_HOME$/go/src/github.com/codegangsta/envy/.git" />
+      <root url="file://$USER_HOME$/go/src/github.com/codegangsta/gin/.git" />
+      <root url="file://$PROJECT_DIR$" />
+      <root url="file://$USER_HOME$/go/src/github.com/gorilla/context/.git" />
+      <root url="file://$USER_HOME$/go/src/github.com/codegangsta/negroni/.git" />
+    </excluded>
+  </library>
+</component>
