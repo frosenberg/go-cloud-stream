@@ -60,7 +60,7 @@ func getTransport() (api.TransportInterface) {
 
 		log.Debugln("redisTransport.inputName: ", redisTransport.InputBinding)
 		log.Debugln("redisTransport.outputName: ", redisTransport.OutputBinding)
-
+``
 		log.Debugln("CLI Arguments:")
 		log.Debugln("\tAddress: " , redisTransport.Address)
 		log.Debugln("\tMax: ", redisTransport.MaxConnections)

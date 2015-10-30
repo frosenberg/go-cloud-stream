@@ -21,7 +21,6 @@ func NewMessage(headers map[string]string, content string) *Message {
 func NewTextMessage(content string) *Message {
 	headers := make(map[string]string)
 	headers["contentType"] = "text/plain"
-
 	return &Message { Headers : headers,
 					  Content: content}
 }
