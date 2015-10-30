@@ -3,69 +3,52 @@ package main
 import (
 	"fmt"
 	"time"
+	"github.com/frosenberg/go-cloud-stream/api"
+	"github.com/frosenberg/go-cloud-stream/stream"
 )
 
-//
-// Executors for Source/Sink/Processor
-//
-
-func executeSource(fs Source) {
-	// TODO factor our Redis to be drive by config flags
-
-	properties := new(RedisTransportProperties)
-
-	properties.address = *redisAddress
-	properties.name = "RedisTransport"
-	properties.outputName = fmt.Sprint("queue." + *outputQueue)
-
-	properties.Connect()
-
-	fs(properties)
-
-	properties.Disconnect();
-}
-
-func executeSink(fs Sink) {
-	// TODO implement
-}
-
-func executeProcessor(fp Processor) {
-
-	// TODO implement
-}
 
 // code that the module coder would write is below
 
-func timeSource(ch OutputChannel) {
+func timeSource(ch api.OutputChannel) {
 
 	fmt.Println("timeSource: ");
 
-		t := time.Tick(1 * time.Second)
-		for now := range t {
-			tock := fmt.Sprint(now)
-			ch.Send([]byte(tock))
-		}
+	t := time.Tick(5 * time.Second)
+	for now := range t {
+		ch.Send(api.NewTextMessage(fmt.Sprint(now)))
+	}
 
 }
 
 // TODO write a sink
-func logSink(ch InputChannel) {
+func logSink(ch api.InputChannel) {
 	fmt.Println("logSink")
 
+	out := ch.ReceiveChan()
 
+	for {
+		select {
+		case s := <-out:
+			fmt.Println(s)
+		case <-time.After(100 * time.Second):
+			fmt.Println("You're too slow.")
+			return
+		}
+	}
 
 }
 
 // TODO write a processor
-func regexProcessor(ch InputOutputChannel) {
-	fmt.Println("regexProcessor");
+func regexProcessor(ch api.InputOutputChannel) {
+	fmt.Println("regexProcessor")
 }
 
+
 func main() {
-
-	executeSource(timeSource);
-
-//	executeSink(logSink);
-//	executeProcessor(regexProcessor);
+	stream.Init() // TODO provide capabilities to provide your own CLI args.
+//	stream.RunSink(logSink)
+	stream.RunSource(timeSource)
+	stream.Cleanup()
 }
 
