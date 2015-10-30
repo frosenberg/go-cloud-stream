@@ -1,10 +1,8 @@
 package redis
 
 import (
-	"fmt"
 	"github.com/garyburd/redigo/redis"
 	"strings"
-	"reflect"
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
 )
@@ -59,7 +57,6 @@ func (t *RedisTransport) Disconnect() (err error) {
 }
 
 func (t *RedisTransport) Send(m *api.Message) (err error) {
-	fmt.Println("Send to ", t.OutputBinding)
 	status, err := t.Pool.Get().Do("RPUSH", t.OutputBinding, m.ToByteArray() )
 	if err != nil {
 		log.Errorf("Cannot LPUSH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
@@ -91,45 +88,6 @@ func (t *RedisTransport) ReceiveChan() <-chan api.Message {
 	return out
 }
 
-// TODO remove as it uses a callback that is a bad idiom in go
-func (t *RedisTransport) Receive(callback api.OnMessageFunction) (err error) {
-
-	fmt.Println("Input: ", t.InputBinding)
-//	go func() {
-		for {
-			value, err := t.Pool.Get().Do("BRPOP", t.InputBinding, 1)
-			if err != nil {
-				fmt.Printf("Cannot RPOP on '%v': %v (%v)\n", t.InputBinding, err, value)
-			}
-
-			if value == nil {
-				fmt.Println("Unblocked now...")
-			}
-			if value != nil {
-				// convert interface{} to byte[]
-				bytes, ok := value.([]interface{})
-
-				fmt.Println("bytes: ", string(bytes[1].([]uint8)))
-				fmt.Println(reflect.TypeOf(value).String())
-				fmt.Println("ok: ", ok)
-
-				if ok {
-					message := api.NewMessageFromRawBytes(bytes[1].([]uint8))
-					callback(message)
-				} else {
-					fmt.Println("ERROR: ", value)
-				}
-				// TODO handle read error
-				//}
-
-				// TODO this will be a clusterfuck
-				//			return nil //NewMessage(make([]byte, 2));
-			}
-
-		}
-//	}
-	return nil
-}
 //	psc := redis.PubSubConn{t.pool.Get()}
 //	psc.Subscribe(t.outputName)
 
@@ -155,7 +113,6 @@ func (t *RedisTransport) IsInputQueueSemantics() bool {
 func (t *RedisTransport) IsOutputQueueSemantics() bool {
 	return strings.HasPrefix(t.OutputBinding, "queue:")
 }
-
 
 func (t *RedisTransport) HasInputBinding() bool {
 	return t.InputBinding != ""

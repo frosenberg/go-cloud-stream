@@ -25,7 +25,7 @@ func timeSource(ch api.OutputChannel) {
 func logSink(ch api.InputChannel) {
 	fmt.Println("logSink")
 
-	out := ch.ReceiveChan()
+	out := ch.Receive()
 
 	for {
 		select {
