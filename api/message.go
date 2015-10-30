@@ -4,6 +4,9 @@ import (
 	"encoding/binary"
 //	log "github.com/Sirupsen/logrus"
 	"sort"
+	"net/http"
+	"io/ioutil"
+	"fmt"
 )
 
 // Message type used to send a receive messages
@@ -27,6 +30,24 @@ func NewTextMessage(content string) *Message {
 	headers["contentType"] = "\"text/plain\""
 	return &Message { Headers : headers,
 					  Content: []byte(content)}
+}
+
+//
+// Creates a new Message instance with a given http request.
+//
+func NewMessageFromHttpRequest(r *http.Request) *Message {
+	ct := r.Header.Get("Content-Type")
+	if ct == "" {
+		ct = r.Header.Get("content-type")
+	}
+
+	headers := make(map[string]string)
+	headers["contentType"] = "\"text/plain\""
+	headers["originalContentType"] = fmt.Sprintf("\"" + ct + "\"")
+
+	body, _ := ioutil.ReadAll(r.Body)
+
+	return &Message{ Headers: headers, Content: body}
 }
 
 //

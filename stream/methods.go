@@ -19,8 +19,9 @@ var (
 	redisAddress = kingpin.Flag("spring.redis.host", "Address to the Redis server.").Default(":6379").String()
 	inputBinding = kingpin.Flag("spring.cloud.stream.bindings.input", "Input Binding queue or topic.").Default("input").String()
 	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output", "Output Binding queue or topic.").Default("output").String()
+	ServerPort = kingpin.Flag("server.port", "HTTP Server port.").Default("8080").String()
 
-	// TODO add deployment properties for partitioning
+// TODO add deployment properties for partitioning
 
 	// TODO add kafka variables
 
@@ -104,7 +105,6 @@ func Init() {
 		Cleanup()
 		os.Exit(1)
 	}()
-
 }
 
 //
