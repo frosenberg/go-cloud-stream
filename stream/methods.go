@@ -1,8 +1,6 @@
 package stream
 
 import (
-	"strings"
-	"fmt"
 	"os/signal"
 	"syscall"
 	"os"
@@ -37,27 +35,13 @@ type CloudStreamModule interface {
 	Cleanup()
 }
 
-// Lazy inits a transport
+// Lazy initialize a transport
 func getTransport() (api.TransportInterface) {
 
 	// TODO init based on CLI setting
+	// TODO figure out CLI settings for this
 	if transport == nil {
-		redisTransport := redis.NewRedisTransport()
-
-		// TODO this needs to be done based on CLI args
-		redisTransport.Address = *redisAddress
-
-		if strings.HasPrefix(*inputBinding, "topic:") {
-			redisTransport.InputBinding = fmt.Sprint("topic.", *inputBinding)
-		} else {
-			redisTransport.InputBinding = fmt.Sprint("queue.", *inputBinding)
-		}
-
-		if strings.HasPrefix(*outputBinding, "topic:") {
-			redisTransport.OutputBinding = fmt.Sprint("topic.", *outputBinding)
-		} else {
-			redisTransport.OutputBinding = fmt.Sprint("queue.", *outputBinding)
-		}
+		redisTransport := redis.NewRedisTransport(*redisAddress, *inputBinding, *outputBinding)
 
 		log.Debugln("redisTransport.inputName: ", redisTransport.InputBinding)
 		log.Debugln("redisTransport.outputName: ", redisTransport.OutputBinding)

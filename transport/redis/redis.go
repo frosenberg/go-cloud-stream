@@ -5,6 +5,7 @@ import (
 	"strings"
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
+	"fmt"
 )
 
 //
@@ -22,13 +23,27 @@ type RedisTransport struct {
 
 // Creates a new RedisTransport instance with
 // sensible default values.
-func NewRedisTransport() (*RedisTransport) {
-	return &RedisTransport{
-		Transport: api.Transport {InputBinding: "input", OutputBinding: "output"},
-		Address: "localhost:6379",
-		Timeout: 1,
-		MaxConnections: 10,
+func NewRedisTransport(address string, inputBinding string, outputBinding string) (*RedisTransport) {
+
+	// set some reasonable defaults
+	if address == "" {
+		address = "localhost:6379"
 	}
+	if inputBinding == "" {
+		inputBinding = "input"
+	}
+	if outputBinding == "" {
+		outputBinding = "output"
+	}
+
+	transport := &RedisTransport{
+		Transport: api.Transport {	InputBinding: prefix(inputBinding),
+			 						OutputBinding: prefix(outputBinding) },
+		Address: address,
+		Timeout: 1, // TODO parameterize via CLI?
+		MaxConnections: 10, // TODO parameterize via CLI?
+	}
+	return transport
 }
 
 func (t *RedisTransport) Connect() (err error) {
@@ -46,7 +61,6 @@ func (t *RedisTransport) Connect() (err error) {
 	}, t.MaxConnections)
 
 	t.Pool = redisConn;
-
 	return err
 }
 
@@ -57,67 +71,95 @@ func (t *RedisTransport) Disconnect() (err error) {
 }
 
 func (t *RedisTransport) Send(m *api.Message) (err error) {
-	status, err := t.Pool.Get().Do("RPUSH", t.OutputBinding, m.ToByteArray() )
-	if err != nil {
-		log.Errorf("Cannot LPUSH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
+	conn := t.Pool.Get()
+
+	if t.isOutputTopicSemantics() {
+		status, err := conn.Do("PUBLISH", t.OutputBinding, m.ToByteArray())
+		if err != nil {
+			log.Errorf("Cannot PUBLISH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
+		} else {
+			log.Debugf("Published '%s' to topic '%s'\n", m.Content, t.OutputBinding)
+		}
 	} else {
-		log.Debugf("Pushed '%s' to queue '%s'\n",  m.Content, t.OutputBinding)
+		status, err := conn.Do("RPUSH", t.OutputBinding, m.ToByteArray())
+		if err != nil {
+			log.Errorf("Cannot RPUSH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
+		} else {
+			log.Debugf("Pushed '%s' to queue '%s'\n", m.Content, t.OutputBinding)
+		}
+
 	}
 	return err
 }
 
-func (t *RedisTransport) ReceiveChan() <-chan api.Message {
+func (t *RedisTransport) Receive() <-chan api.Message {
 	conn := t.Pool.Get()
 	out := make(chan api.Message)
 
-	go func() {
-		for {
-			value, err := conn.Do("BRPOP", t.InputBinding, 0)
-			if err != nil {
-				log.Errorf("Cannot RPOP on '%v': %v (%v)\n", t.InputBinding, err, value)
-			}
-			if value != nil {
-				// convert interface{} to byte[]
-				bytes, ok := value.([]interface{})
-				if ok {
-					out <- *api.NewMessageFromRawBytes( bytes[1].([]uint8) )
+	if t.isInputTopicSemantics() { // topic processing
+		psc := redis.PubSubConn{conn}
+		psc.Subscribe(t.InputBinding)
+
+		go func() {
+			for {
+				switch v := psc.Receive().(type) {
+				case redis.Message:
+					out<- *api.NewMessageFromRawBytes(v.Data)
+				case error:
+					fmt.Println("Error: %s", v)
+					// TODO return v
 				}
 			}
-		}
-	}()
+		}()
+	} else { // queue processing
+
+		go func() {
+			for {
+				value, err := conn.Do("BRPOP", t.InputBinding, 0)
+				if err != nil {
+					log.Errorf("Cannot RPOP on '%v': %v (%v)\n", t.InputBinding, err, value)
+				}
+				if value != nil {
+					// convert interface{} to byte[]
+					bytes, ok := value.([]interface{})
+					if ok {
+						out <- *api.NewMessageFromRawBytes(bytes[1].([]uint8))
+					}
+				}
+			}
+		}()
+	}
 	return out
 }
 
-//	psc := redis.PubSubConn{t.pool.Get()}
-//	psc.Subscribe(t.outputName)
-
-//	for {
-//		switch v := psc.Receive().(type) {
-//			case redis.Message:
-//				fmt.Printf("%s: message: %s\n", v.Channel, v.Data)
-//			case redis.Subscription:
-//				fmt.Printf("%s: %s %d\n", v.Channel, v.Kind, v.Count)
-//			case error:
-//				fmt.Println("Error: %s", v)
-//				// TODO return v
-//			default:
-//				fmt.Println("SAU")
-//		}
-//	}
-
-
-func (t *RedisTransport) IsInputQueueSemantics() bool {
-	return strings.HasPrefix(t.InputBinding, "queue:")
+func (t *RedisTransport) isInputQueueSemantics() bool {
+	return strings.HasPrefix(t.InputBinding, "queue.")
 }
 
-func (t *RedisTransport) IsOutputQueueSemantics() bool {
-	return strings.HasPrefix(t.OutputBinding, "queue:")
+func (t *RedisTransport) isOutputQueueSemantics() bool {
+	return strings.HasPrefix(t.OutputBinding, "queue.")
 }
 
-func (t *RedisTransport) HasInputBinding() bool {
-	return t.InputBinding != ""
+func (t *RedisTransport) isOutputTopicSemantics() bool {
+	return strings.HasPrefix(t.OutputBinding, "topic.")
 }
 
-func (t *RedisTransport) HasOutputBinding() bool {
-	return t.OutputBinding != ""
+func (t *RedisTransport) isInputTopicSemantics() bool {
+	return strings.HasPrefix(t.InputBinding, "topic.")
+}
+
+
+// Set the prefix of a binding correctly as it is
+// expected by the underlying transformer.
+
+func prefix(binding string) string {
+	if strings.HasPrefix(binding, "topic:") {
+		return strings.Replace(binding, "topic:", "topic.", 1)
+	}
+
+	if strings.HasPrefix(binding, "queue:") {
+		return strings.Replace(binding, "queue:", "queue.", 1)
+	} else {
+		return fmt.Sprintf("queue.%s", binding)
+	}
 }

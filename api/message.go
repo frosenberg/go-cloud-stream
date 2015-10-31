@@ -16,6 +16,14 @@ type Message struct {
 	Content []byte
 }
 
+type MessageInterface interface {
+	ToByteArray() []byte
+}
+
+func (c Message) String() string {
+	return fmt.Sprintf("[%s, %s]", c.Headers, c.Content)
+}
+
 // Message Constructors
 func NewMessage(headers map[string]string, content []byte) *Message {
 	return &Message { Headers : headers,
@@ -57,13 +65,9 @@ func NewMessageFromRawBytes(rawData []byte) *Message {
 	return toMessage(rawData);
 }
 
-type MessageInterface interface {
-	ToByteArray() []byte
-}
-
 //   format: 0xff, n(1), [ [lenHdr(1), hdr, lenValue(4), value] ... ]
 //   sample: "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"2015-10-25 23:13:21"
-func  toMessage(payload []byte) *Message {
+func toMessage(payload []byte) *Message {
 	message := &Message { Headers : make(map[string]string) }
 
 	if len(payload) == 0 {
