@@ -74,14 +74,14 @@ func (t *RedisTransport) Send(m *api.Message) (err error) {
 	conn := t.Pool.Get()
 
 	if t.isOutputTopicSemantics() {
-		status, err := conn.Do("PUBLISH", t.OutputBinding, m.ToByteArray())
+		status, err := conn.Do("PUBLISH", t.OutputBinding, m.ToRawByteArray())
 		if err != nil {
 			log.Errorf("Cannot PUBLISH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
 		} else {
 			log.Debugf("Published '%s' to topic '%s'\n", m.Content, t.OutputBinding)
 		}
 	} else {
-		status, err := conn.Do("RPUSH", t.OutputBinding, m.ToByteArray())
+		status, err := conn.Do("RPUSH", t.OutputBinding, m.ToRawByteArray())
 		if err != nil {
 			log.Errorf("Cannot RPUSH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
 		} else {

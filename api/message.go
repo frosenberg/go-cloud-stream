@@ -9,22 +9,20 @@ import (
 	"fmt"
 )
 
-// Message type used to send a receive messages
-// between Transports
+// Message type used to send a receive messages between Transports
 type Message struct {
 	Headers map[string]string
 	Content []byte
-}
-
-type MessageInterface interface {
-	ToByteArray() []byte
 }
 
 func (c Message) String() string {
 	return fmt.Sprintf("[%s, %s]", c.Headers, c.Content)
 }
 
-// Message Constructors
+//
+// Creates a new message with a custom set of headers and
+// a byte array with the content.
+//
 func NewMessage(headers map[string]string, content []byte) *Message {
 	return &Message { Headers : headers,
 		Content: content}
@@ -60,13 +58,17 @@ func NewMessageFromHttpRequest(r *http.Request) *Message {
 
 //
 // Converts a raw byte array received from the transport to a Message instance.
+// This message is only required when building a new Transport.
 //
 func NewMessageFromRawBytes(rawData []byte) *Message {
 	return toMessage(rawData);
 }
 
-//   format: 0xff, n(1), [ [lenHdr(1), hdr, lenValue(4), value] ... ]
-//   sample: "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"2015-10-25 23:13:21"
+// This methods transforms a raw byte array that is read from the Transport
+// to a Message object. This is only required when building a transport.
+//
+// Format: 0xff, n(1), [ [lenHdr(1), hdr, lenValue(4), value] ... ]
+// Sample: "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"2015-10-25 23:13:21"
 func toMessage(payload []byte) *Message {
 	message := &Message { Headers : make(map[string]string) }
 
@@ -108,9 +110,13 @@ func toMessage(payload []byte) *Message {
 	return message
 }
 
-//   format: 0xff, n(1), [ [lenHdr(1), hdr, lenValue(4), value] ... ]
-//   sample: "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"2015-10-25 23:13:21"
-func (m *Message) ToByteArray() []byte {
+//   This method converts a Message to a raw byte array that is expected
+//   by the underlying transport. This message is only required when building
+//   a new transport.
+//
+//   Format: 0xff, n(1), [ [lenHdr(1), hdr, lenValue(4), value] ... ]
+//   Sample: "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"2015-10-25 23:13:21"
+func (m *Message) ToRawByteArray() []byte {
 	preamble := make([]byte, 2)
 
 	// build preamble

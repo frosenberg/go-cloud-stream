@@ -12,7 +12,7 @@ func init() {
 
 func TestTextMessageToByteArray(t *testing.T) {
 	actualMsg := NewTextMessage("foobar")
-	actualMsgBytes := actualMsg.ToByteArray()
+	actualMsgBytes := actualMsg.ToRawByteArray()
 	expectedMsg := "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"foobar"
 	expectedMsgBytes := []byte(expectedMsg)
 
@@ -30,7 +30,7 @@ func TestGenericMessageToByteArray(t *testing.T) {
 	actualHeaders["originalContentType"] = "\"application/json\""
 
 	actualMsg := NewMessage(actualHeaders, []byte("{ foor : bar }"))
-	actualMsgBytes := actualMsg.ToByteArray()
+	actualMsgBytes := actualMsg.ToRawByteArray()
 	expectedMsg := "\xff\x02\x0bcontentType\x00\x00\x00\x0c\"text/plain\"\x13originalContentType\x00\x00\x00\x12\"application/json\"{ foor : bar }"
 	expectedMsgBytes := []byte(expectedMsg)
 
@@ -68,7 +68,7 @@ func TestMessageRoundtrip(t *testing.T) {
 	actualMsgBytes := []byte(actualMsgBytesString)
 	actualMsg := NewMessageFromRawBytes(actualMsgBytes)
 
-	if !reflect.DeepEqual(actualMsg.ToByteArray(), actualMsgBytes) {
+	if !reflect.DeepEqual(actualMsg.ToRawByteArray(), actualMsgBytes) {
 		t.Fatalf("Message roundtripping failed")
 	}
 }

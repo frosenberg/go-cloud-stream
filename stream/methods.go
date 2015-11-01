@@ -13,11 +13,11 @@ import (
 
 // all CLI variables
 var (
-	debug = kingpin.Flag("v", "Enable debug logging.").Default("false").Bool()
+	debug = kingpin.Flag("verbose", "Enable debug logging.").Short(byte('v')).Default("false").Bool()
 	redisAddress = kingpin.Flag("spring.redis.host", "Address to the Redis server.").Default(":6379").String()
-	inputBinding = kingpin.Flag("spring.cloud.stream.bindings.input", "Input Binding queue or topic.").Default("input").String()
-	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output", "Output Binding queue or topic.").Default("output").String()
-	ServerPort = kingpin.Flag("server.port", "HTTP Server port.").Default("8080").String()
+	inputBinding = kingpin.Flag("spring.cloud.stream.bindings.input", "Input Binding queue or topic.").Short(byte('i')).Default("input").String()
+	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output", "Output Binding queue or topic.").Short(byte('o')).Default("output").String()
+	ServerPort = kingpin.Flag("server.port", "HTTP Server port.").Short(byte('p')).Default("8080").String()
 
 // TODO add deployment properties for partitioning
 
@@ -67,7 +67,7 @@ func getOutputChannel() (api.OutputChannel) {
 }
 
 // helper to cast the transport to an InputOutputChannel
-func getInOutChannel() (api.InputOutputChannel) {
+func getInputOutputChannel() (api.InputOutputChannel) {
 	return transport.(api.InputOutputChannel)
 }
 
@@ -75,7 +75,9 @@ func getInOutChannel() (api.InputOutputChannel) {
 func Init() {
 	// CLI init
 	kingpin.Version("0.0.1")
+	kingpin.CommandLine.HelpFlag.Short(byte('h'))
 	kingpin.Parse()
+
 	if *debug {
 		log.SetLevel(log.DebugLevel)
 	}
@@ -107,8 +109,9 @@ func RunSink(fs api.Sink) {
 }
 
 func RunProcessor(fp api.Processor) {
-
-	// TODO implement
+	getTransport().Connect()
+	fp(getInputOutputChannel())
+	defer getTransport().Disconnect()
 }
 
 func Cleanup() {
