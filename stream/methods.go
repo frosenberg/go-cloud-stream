@@ -118,7 +118,7 @@ func RunProcessor(fp api.Processor) {
 
 func panicOnError(err error) {
 	if err != nil {
-		msg := fmt.Sprintf("Error while connecting to transport: %s", err.Error)
+		msg := fmt.Sprintf("Error while connecting to transport: %s", err.Error())
 		log.Fatalln(msg)
 		panic(msg)
 	}

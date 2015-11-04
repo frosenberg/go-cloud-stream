@@ -66,7 +66,6 @@ func (t *RedisTransport) Connect() (err error) {
 	}
 
 	resp := conn.Cmd("PING")
-	log.Debugln("resp:", resp)
 	if resp.Err != nil {
 		log.Debugln("Cannot while pinging Redis.")
 		return resp.Err
