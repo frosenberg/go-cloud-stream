@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"fmt"
 )
 
 // all CLI variables
@@ -94,26 +95,33 @@ func Init() {
 // Executors for Source/Sink/Processor
 //
 func RunSource(fs api.Source) {
-	getTransport().Connect()
+	err := getTransport().Connect()
+	panicOnError(err)
 	fs(getOutputChannel())
 	defer getTransport().Disconnect()
 }
 
 func RunSink(fs api.Sink) {
 	err := getTransport().Connect()
-	log.Debugln("AFTER CONNECT: ", err)
-	if err != nil {
-		log.Fatalf("Error while connecting: ", err)
-	}
-
+	panicOnError(err)
 	fs(getInputChannel())
 	defer getTransport().Disconnect()
 }
 
 func RunProcessor(fp api.Processor) {
-	getTransport().Connect()
+	err := getTransport().Connect()
+	panicOnError(err)
 	fp(getInputOutputChannel())
 	defer getTransport().Disconnect()
+}
+
+
+func panicOnError(err error) {
+	if err != nil {
+		msg := fmt.Sprintf("Error while connecting to transport: %s", err.Error)
+		log.Fatalln(msg)
+		panic(msg)
+	}
 }
 
 func Cleanup() {
