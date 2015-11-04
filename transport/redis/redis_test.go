@@ -17,6 +17,42 @@ func init() {
 	defer cleanupRedis(client)
 }
 
+func TestNewRedisTransportEmpty(t *testing.T) {
+	r := NewRedisTransport("", "", "")
+
+	if r.Address != "localhost:6379" {
+		t.Fatalf("Unexpected redis address: ", r.Address)
+	}
+	if r.InputBinding != "queue.input" {
+		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+	}
+	if r.OutputBinding != "queue.output" {
+		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+	}
+}
+
+func TestNewRedisTransportQueue(t *testing.T) {
+	r := NewRedisTransport("", "queue:foo", "queue:bar")
+
+	if r.InputBinding != "queue.foo" {
+		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+	}
+	if r.OutputBinding != "queue.bar" {
+		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+	}
+}
+
+func TestNewRedisTransportTopic(t *testing.T) {
+	r := NewRedisTransport("", "topic:foo", "topic:bar")
+
+	if r.InputBinding != "topic.foo" {
+		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+	}
+	if r.OutputBinding != "topic.bar" {
+		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+	}
+}
+
 func TestConnectToNotExistingRedis(t *testing.T) {
 	redis := NewRedisTransport("doesnotexist:6379", "input", "ouput")
 	err := redis.Connect()

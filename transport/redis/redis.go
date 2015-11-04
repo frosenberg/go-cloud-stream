@@ -137,14 +137,6 @@ func (t *RedisTransport) Receive() <-chan api.Message {
 	return out
 }
 
-func (t *RedisTransport) isInputQueueSemantics() bool {
-	return strings.HasPrefix(t.InputBinding, "queue.")
-}
-
-func (t *RedisTransport) isOutputQueueSemantics() bool {
-	return strings.HasPrefix(t.OutputBinding, "queue.")
-}
-
 func (t *RedisTransport) isOutputTopicSemantics() bool {
 	return strings.HasPrefix(t.OutputBinding, "topic.")
 }
