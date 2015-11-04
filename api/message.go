@@ -31,11 +31,11 @@ func NewMessage(headers map[string]string, content []byte) *Message {
 //
 // Creates a new Message instance with a given string content.
 //
-func NewTextMessage(content string) *Message {
+func NewTextMessage(content []byte) *Message {
 	headers := make(map[string]string)
 	headers["contentType"] = "\"text/plain\""
 	return &Message { Headers : headers,
-					  Content: []byte(content)}
+					  Content: content }
 }
 
 //

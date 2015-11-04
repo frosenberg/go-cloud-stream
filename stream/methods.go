@@ -8,19 +8,17 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/transport/redis"
 	"github.com/frosenberg/go-cloud-stream/api"
-
 )
 
 // all CLI variables
 var (
 	debug = kingpin.Flag("verbose", "Enable debug logging.").Short(byte('v')).Default("false").Bool()
-	redisAddress = kingpin.Flag("spring.redis.host", "Address to the Redis server.").Default(":6379").String()
-	inputBinding = kingpin.Flag("spring.cloud.stream.bindings.input", "Input Binding queue or topic.").Short(byte('i')).Default("input").String()
-	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output", "Output Binding queue or topic.").Short(byte('o')).Default("output").String()
-	ServerPort = kingpin.Flag("server.port", "HTTP Server port.").Short(byte('p')).Default("8080").String()
+	redisAddress = kingpin.Flag("spring.redis.host", "Address for the Redis server.").Default(":6379").OverrideDefaultFromEnvar("SPRING_REDIS_HOST").String()
+	inputBinding = kingpin.Flag("spring.cloud.stream.bindings.input.destination", "Input Binding queue or topic.").Short(byte('i')).Default("input").String()
+	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output.destination", "Output Binding queue or topic.").Short(byte('o')).Default("output").String()
+	ServerPort = kingpin.Flag("server.port", "HTTP Server port.").Default("8080").OverrideDefaultFromEnvar("SERVER_PORT").Short(byte('p')).String()
 
-// TODO add deployment properties for partitioning
-
+	// TODO add deployment properties for partitioning
 	// TODO add kafka variables
 
 	transport = interface{}(nil)

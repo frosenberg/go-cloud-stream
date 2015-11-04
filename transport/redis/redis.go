@@ -1,7 +1,8 @@
 package redis
 
 import (
-	"github.com/garyburd/redigo/redis"
+	"github.com/mediocregopher/radix.v2/pool"
+	"github.com/mediocregopher/radix.v2/pubsub"
 	"strings"
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
@@ -13,12 +14,13 @@ import (
 //
 type RedisTransport struct {
 	api.Transport
-	Address string;
+	Address string
 
 	// Timeout for blocking receives in seconds
-	Timeout int;
-	MaxConnections int;
-	Pool *redis.Pool
+	Timeout int
+
+	MaxConnections int
+	pool *pool.Pool
 }
 
 // Creates a new RedisTransport instance with
@@ -47,43 +49,42 @@ func NewRedisTransport(address string, inputBinding string, outputBinding string
 }
 
 func (t *RedisTransport) Connect() (err error) {
-	log.Debugln("Connecting to Redis: ", t.Address)
+	log.Debugln("Connecting to Redis server: ", t.Address)
 
 	// create redis pool
-	redisConn := redis.NewPool(func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", t.Address)
+	pool, err := pool.New("tcp", t.Address, t.MaxConnections)
+	if err != nil {
+		return err
+	}
+	t.pool = pool
 
-		if err != nil {
-			return nil, err
-		}
-
-		return c, err
-	}, t.MaxConnections)
-
-	t.Pool = redisConn;
-	return err
-}
-
-func (t *RedisTransport) Disconnect() (err error) {
-	log.Debugln("Disconnecting from Redis: ", t.Address)
-	defer t.Pool.Close();
 	return nil
 }
 
+// Disconnects from the Redis transport. It does not fai
+// if you are not connected.
+func (t *RedisTransport) Disconnect() {
+	log.Debugln("Disconnecting from Redis: ", t.Address)
+
+	// nothing to do really
+}
+
 func (t *RedisTransport) Send(m *api.Message) (err error) {
-	conn := t.Pool.Get()
+	conn, _ := t.pool.Get()
+	defer t.pool.Put(conn)
 
 	if t.isOutputTopicSemantics() {
-		status, err := conn.Do("PUBLISH", t.OutputBinding, m.ToRawByteArray())
-		if err != nil {
-			log.Errorf("Cannot PUBLISH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
+		resp := conn.Cmd("PUBLISH", t.OutputBinding, m.ToRawByteArray())
+		log.Debugln("resp (publish): ", resp)
+		if resp.Err != nil {
+			log.Errorf("Cannot PUBLISH on queue '%v': %v", t.OutputBinding, err)
 		} else {
 			log.Debugf("Published '%s' to topic '%s'\n", m.Content, t.OutputBinding)
 		}
 	} else {
-		status, err := conn.Do("RPUSH", t.OutputBinding, m.ToRawByteArray())
-		if err != nil {
-			log.Errorf("Cannot RPUSH on queue '%v': %v (%v)\n", t.OutputBinding, err, status)
+		resp := conn.Cmd("RPUSH", t.OutputBinding, m.ToRawByteArray())
+		if resp.Err != nil {
+			log.Errorf("Cannot RPUSH on queue '%v': %v", t.OutputBinding, err)
 		} else {
 			log.Debugf("Pushed '%s' to queue '%s'\n", m.Content, t.OutputBinding)
 		}
@@ -93,38 +94,43 @@ func (t *RedisTransport) Send(m *api.Message) (err error) {
 }
 
 func (t *RedisTransport) Receive() <-chan api.Message {
-	conn := t.Pool.Get()
 	out := make(chan api.Message)
 
 	if t.isInputTopicSemantics() { // topic processing
-		psc := redis.PubSubConn{conn}
-		psc.Subscribe(t.InputBinding)
 
 		go func() {
+			conn, _ := t.pool.Get()
+			psc := pubsub.NewSubClient(conn)
+			sr := psc.Subscribe(t.InputBinding)
+			defer psc.Unsubscribe(t.InputBinding)
+			log.Debugln("response: ", sr)
+
 			for {
-				switch v := psc.Receive().(type) {
-				case redis.Message:
-					out<- *api.NewMessageFromRawBytes(v.Data)
-				case error:
-					fmt.Println("Error: %s", v)
-					// TODO return v
+				log.Debugln("before: ")
+				resp := psc.Receive()
+				log.Debugln("after: ", resp)
+
+				if resp.Err != nil {
+					out<- *api.NewMessageFromRawBytes([]byte(resp.Err.Error()))
+				} else {
+					out <- *api.NewMessageFromRawBytes([]byte(resp.Message))
 				}
 			}
 		}()
+
 	} else { // queue processing
 
 		go func() {
+			conn, _ := t.pool.Get()
+			defer t.pool.Put(conn)
+
 			for {
-				value, err := conn.Do("BRPOP", t.InputBinding, 0)
+				content, err := conn.Cmd("BRPOP", t.InputBinding, 0).List()
 				if err != nil {
-					log.Errorf("Cannot RPOP on '%v': %v (%v)\n", t.InputBinding, err, value)
-				}
-				if value != nil {
-					// convert interface{} to byte[]
-					bytes, ok := value.([]interface{})
-					if ok {
-						out <- *api.NewMessageFromRawBytes(bytes[1].([]uint8))
-					}
+					log.Errorf("Cannot RPOP on '%v': %v", t.InputBinding, err)
+				} else {
+					log.Debugln(content)
+					out <- *api.NewMessageFromRawBytes([]byte(content[1]))
 				}
 			}
 		}()
