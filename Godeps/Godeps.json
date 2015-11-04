@@ -16,12 +16,16 @@
 			"Rev": "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
 		},
 		{
-			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
+			"ImportPath": "github.com/mediocregopher/radix.v2/pool",
+			"Rev": "9c9a238f8e52b72881f19c4e9113182689f11de0"
 		},
 		{
-			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
+			"ImportPath": "github.com/mediocregopher/radix.v2/pubsub",
+			"Rev": "9c9a238f8e52b72881f19c4e9113182689f11de0"
+		},
+		{
+			"ImportPath": "github.com/mediocregopher/radix.v2/redis",
+			"Rev": "9c9a238f8e52b72881f19c4e9113182689f11de0"
 		},
 		{
 			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
