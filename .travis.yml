@@ -1,7 +1,6 @@
 language: go
 go:
 - 1.5
-- tip
 before_install:
 - go get golang.org/x/tools/cmd/cover github.com/mattn/goveralls github.com/pierrre/gotestcover
 script:
