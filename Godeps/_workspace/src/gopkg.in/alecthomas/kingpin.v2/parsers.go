@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/frosenberg/go-cloud-stream/Godeps/_workspace/src/github.com/alecthomas/units"
+	"github.com/alecthomas/units"
 )
 
 type Settings interface {

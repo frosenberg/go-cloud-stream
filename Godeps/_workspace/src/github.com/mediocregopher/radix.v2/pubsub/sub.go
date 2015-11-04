@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/frosenberg/go-cloud-stream/Godeps/_workspace/src/github.com/mediocregopher/radix.v2/redis"
+	"github.com/mediocregopher/radix.v2/redis"
 )
 
 // SubRespType describes the type of the response  being returned from one of

@@ -58,6 +58,21 @@ func (t *RedisTransport) Connect() (err error) {
 	}
 	t.pool = pool
 
+	// do a ping to ensure we are connected
+	conn, err := t.pool.Get()
+	if err != nil {
+		log.Debugln("Cannot get connection from Redis pool.")
+		return err
+	}
+
+	resp := conn.Cmd("PING")
+	log.Debugln("resp:", resp)
+	if resp.Err != nil {
+		log.Debugln("Cannot while pinging Redis.")
+		return resp.Err
+	}
+	defer t.pool.Put(conn)
+
 	return nil
 }
 

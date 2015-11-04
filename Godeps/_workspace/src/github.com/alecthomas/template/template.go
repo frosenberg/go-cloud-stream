@@ -6,7 +6,7 @@ package template
 
 import (
 	"fmt"
-	"github.com/frosenberg/go-cloud-stream/Godeps/_workspace/src/github.com/alecthomas/template/parse"
+	"github.com/alecthomas/template/parse"
 	"reflect"
 )
 

@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"github.com/frosenberg/go-cloud-stream/Godeps/_workspace/src/github.com/mediocregopher/radix.v2/redis"
+	"github.com/mediocregopher/radix.v2/redis"
 )
 
 // Pool is a simple connection pool for redis Clients. It will create a small

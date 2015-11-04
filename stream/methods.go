@@ -100,7 +100,12 @@ func RunSource(fs api.Source) {
 }
 
 func RunSink(fs api.Sink) {
-	getTransport().Connect()
+	err := getTransport().Connect()
+	log.Debugln("AFTER CONNECT: ", err)
+	if err != nil {
+		log.Fatalf("Error while connecting: ", err)
+	}
+
 	fs(getInputChannel())
 	defer getTransport().Disconnect()
 }

@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/frosenberg/go-cloud-stream/Godeps/_workspace/src/github.com/alecthomas/template"
+	"github.com/alecthomas/template"
 )
 
 var (
