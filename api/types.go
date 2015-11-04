@@ -3,7 +3,7 @@ package api
 // A Transport is the underlying mechanism for sending and receiving messages
 // between individual modules. Examples could be Redis, Kafka, RabbitMQ, etc.
 type Transport struct {
-	InputBinding string
+	InputBinding  string
 	OutputBinding string
 }
 

@@ -1,12 +1,12 @@
 package redis
 
 import (
+	"fmt"
+	log "github.com/Sirupsen/logrus"
+	"github.com/frosenberg/go-cloud-stream/api"
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/pubsub"
 	"strings"
-	log "github.com/Sirupsen/logrus"
-	"github.com/frosenberg/go-cloud-stream/api"
-	"fmt"
 )
 
 //
@@ -20,12 +20,12 @@ type RedisTransport struct {
 	Timeout int
 
 	MaxConnections int
-	pool *pool.Pool
+	pool           *pool.Pool
 }
 
 // Creates a new RedisTransport instance with
 // sensible default values.
-func NewRedisTransport(address string, inputBinding string, outputBinding string) (*RedisTransport) {
+func NewRedisTransport(address string, inputBinding string, outputBinding string) *RedisTransport {
 
 	// set some reasonable defaults
 	if address == "" {
@@ -39,10 +39,10 @@ func NewRedisTransport(address string, inputBinding string, outputBinding string
 	}
 
 	transport := &RedisTransport{
-		Transport: api.Transport {	InputBinding: prefix(inputBinding),
-			 						OutputBinding: prefix(outputBinding) },
-		Address: address,
-		Timeout: 1, // TODO parameterize via CLI?
+		Transport: api.Transport{InputBinding: prefix(inputBinding),
+			OutputBinding: prefix(outputBinding)},
+		Address:        address,
+		Timeout:        1,  // TODO parameterize via CLI?
 		MaxConnections: 10, // TODO parameterize via CLI?
 	}
 	return transport
@@ -100,18 +100,17 @@ func (t *RedisTransport) Receive() <-chan api.Message {
 
 		go func() {
 			conn, _ := t.pool.Get()
+			defer t.pool.Put(conn)
 			psc := pubsub.NewSubClient(conn)
-			sr := psc.Subscribe(t.InputBinding)
+			psc.Subscribe(t.InputBinding)
 			defer psc.Unsubscribe(t.InputBinding)
-			log.Debugln("response: ", sr)
 
 			for {
-				log.Debugln("before: ")
 				resp := psc.Receive()
-				log.Debugln("after: ", resp)
+				//log.Debugln("after: ", resp)
 
 				if resp.Err != nil {
-					out<- *api.NewMessageFromRawBytes([]byte(resp.Err.Error()))
+					out <- *api.NewMessageFromRawBytes([]byte(resp.Err.Error()))
 				} else {
 					out <- *api.NewMessageFromRawBytes([]byte(resp.Message))
 				}
@@ -129,7 +128,7 @@ func (t *RedisTransport) Receive() <-chan api.Message {
 				if err != nil {
 					log.Errorf("Cannot RPOP on '%v': %v", t.InputBinding, err)
 				} else {
-					log.Debugln(content)
+					//log.Debugln(content)
 					out <- *api.NewMessageFromRawBytes([]byte(content[1]))
 				}
 			}
@@ -153,7 +152,6 @@ func (t *RedisTransport) isOutputTopicSemantics() bool {
 func (t *RedisTransport) isInputTopicSemantics() bool {
 	return strings.HasPrefix(t.InputBinding, "topic.")
 }
-
 
 // Set the prefix of a binding correctly as it is
 // expected by the underlying transformer.

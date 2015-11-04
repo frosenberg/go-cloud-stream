@@ -1,9 +1,9 @@
 package api
 
 import (
-	"testing"
 	log "github.com/Sirupsen/logrus"
 	"reflect"
+	"testing"
 )
 
 func init() {
@@ -11,13 +11,13 @@ func init() {
 }
 
 func TestTextMessageToByteArray(t *testing.T) {
-	actualMsg := NewTextMessage("foobar")
+	actualMsg := NewTextMessage([]byte("foobar"))
 	actualMsgBytes := actualMsg.ToRawByteArray()
 	expectedMsg := "\xff\x01\x0bcontentType\x00\x00\x00\x0c\"text/plain\"foobar"
 	expectedMsgBytes := []byte(expectedMsg)
 
-//	log.Debugln("  actual msg: ", actualMsgBytes)
-//	log.Debugln("expected msg: ", []byte(expectedMsg))
+	//	log.Debugln("  actual msg: ", actualMsgBytes)
+	//	log.Debugln("expected msg: ", []byte(expectedMsg))
 
 	if !reflect.DeepEqual(actualMsgBytes, expectedMsgBytes) {
 		t.Fatalf("Messages are not matching")

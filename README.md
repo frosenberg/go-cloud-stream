@@ -1,5 +1,8 @@
 # go-cloud-stream
 
+[![Build Status](https://travis-ci.org/frosenberg/go-cloud-stream.svg?branch=master)](https://travis-ci.org/frosenberg/go-cloud-stream?branch=master)
+[![Coverage Status](https://coveralls.io/repos/frosenberg/go-cloud-stream/badge.svg?branch=master&service=github)](https://coveralls.io/github/frosenberg/go-cloud-stream?branch=master)
+
 The idea behind this work is to provide a simple way to build highly scalable messaging microservices.
 These message microservices use different transports such as Kafka or Redis for communication.
 The ideas is to deploy those microservices on Docker, Kubernetes or any other container system.
@@ -16,7 +19,7 @@ However, the key aspects of a modules are supported (e.g., queue and topic bindi
 as transports, ...)
 
 Combined with [Spring Cloud Dataflow ](https://github.com/spring-cloud/spring-cloud-dataflow) or your
-own "composition" an deployment framework, this work can easily be used to build highly scalable
+own "composition" and deployment framework, this work can easily be used to build highly scalable
 messaging microservices.
 
 ### Build

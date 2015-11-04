@@ -1,13 +1,14 @@
 package redis
 
 import (
-	"testing"
 	log "github.com/Sirupsen/logrus"
+	"github.com/frosenberg/go-cloud-stream/api"
 	"github.com/mediocregopher/radix.v2/redis"
 	"os"
 	"reflect"
 	"sync"
-	"github.com/frosenberg/go-cloud-stream/api"
+	"testing"
+	"time"
 )
 
 func init() {
@@ -20,7 +21,7 @@ func TestConnectToNotExistingRedis(t *testing.T) {
 	redis := NewRedisTransport("doesnotexist:6379", "input", "ouput")
 	err := redis.Connect()
 
-	if err == nil  { // expect an error
+	if err == nil { // expect an error
 		log.Debugln("Error: ", err)
 		t.Fatalf("Expected connection to fail but it passed.")
 	}
@@ -29,7 +30,7 @@ func TestConnectToNotExistingRedis(t *testing.T) {
 func TestConnectToExistingRedis(t *testing.T) {
 	redis := NewRedisTransport(getRedisHost(), "input", "ouput")
 	err := redis.Connect()
-	if err != nil  {
+	if err != nil {
 		t.Fatalf("Expected connection not established.")
 	}
 	redis.Disconnect()
@@ -45,16 +46,16 @@ func TestSendingAndReceiveWithQueue(t *testing.T) {
 	redis.Connect()
 
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(1)
 
 	// receiver
 	go func() {
 		out := redis.Receive()
 		msg := <-out
-		log.Debug("Got message: ", msg)
 		if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
 			t.Fatalf("Message does not contain correct payload.")
 		} else {
+			log.Debugln("Received message: ", msg)
 			wg.Done()
 		}
 	}()
@@ -62,7 +63,6 @@ func TestSendingAndReceiveWithQueue(t *testing.T) {
 	// sender
 	go func() {
 		redis.Send(api.NewTextMessage([]byte("foobar")))
-		wg.Done()
 	}()
 
 	wg.Wait()
@@ -73,50 +73,45 @@ func TestSendingAndReceiveWithTopic(t *testing.T) {
 	redis := NewRedisTransport(getRedisHost(), "topic:test-123", "topic:test-123")
 	redis.Connect()
 
-	wg := &sync.WaitGroup{}
+	var wg sync.WaitGroup
 	wg.Add(3)
-
-
-	// sender
-	go func() {
-		redis.Send(api.NewTextMessage([]byte("foobar")))
-		wg.Done()
-	}()
 
 	// receiver 1
 	go func() {
-		out := redis.Receive()
-		msg := <-out
-		log.Debug("receiver1 message: ", msg)
-		if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
-			t.Fatalf("Message does not contain correct payload.")
-		} else {
-			log.Debugln("msg.content: ", msg.Content)
-			wg.Done()
-		}
+		subscribe(t, redis)
+		wg.Done()
 	}()
 
 	// receiver 2
 	go func() {
-		out := redis.Receive()
-		msg := <-out
-		log.Debug("receiver2 message: ", msg)
-		if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
-			t.Fatalf("Message does not contain correct payload.")
-		} else {
-			log.Debugln("msg.content: ", msg.Content)
-			wg.Done()
-		}
+		subscribe(t, redis)
+		wg.Done()
+	}()
+
+	// sender
+	go func() {
+		time.Sleep(250 * time.Millisecond) // give the receiver some time to get ready
+		redis.Send(api.NewTextMessage([]byte("foobar")))
+		wg.Done()
 	}()
 
 	wg.Wait()
 	redis.Disconnect()
 }
 
-
 //
 // Helper methods
 //
+func subscribe(t *testing.T, redis *RedisTransport) {
+	out := redis.Receive()
+	msg := <-out
+	log.Debug("receiver2 message: ", msg)
+	if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
+		t.Fatalf("Message does not contain correct payload.")
+	} else {
+		log.Debugln("msg.content: ", msg.Content)
+	}
+}
 
 func getRedisHost() string {
 	redisHost, set := os.LookupEnv("TEST_REDIS_HOST")
@@ -125,7 +120,6 @@ func getRedisHost() string {
 	}
 	return redisHost
 }
-
 
 // Redis is needed to run this test
 func pingRedis() *redis.Client {
