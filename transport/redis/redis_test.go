@@ -17,7 +17,23 @@ func init() {
 	defer cleanupRedis(client)
 }
 
-func TestNewRedisTransportEmpty(t *testing.T) {
+func TestNewRedisTransportEmpty0(t *testing.T) {
+	r := NewRedisTransport(":6379", "", "")
+
+	if r.Address != "localhost:6379" {
+		t.Fatalf("Unexpected redis address: ", r.Address)
+	}
+}
+
+func TestNewRedisTransportEmpty1(t *testing.T) {
+	r := NewRedisTransport("localhost", "", "")
+
+	if r.Address != "localhost:6379" {
+		t.Fatalf("Unexpected redis address: ", r.Address)
+	}
+}
+
+func TestNewRedisTransportEmpty2(t *testing.T) {
 	r := NewRedisTransport("", "", "")
 
 	if r.Address != "localhost:6379" {

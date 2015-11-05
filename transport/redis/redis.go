@@ -7,6 +7,7 @@ import (
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/pubsub"
 	"strings"
+	"regexp"
 )
 
 //
@@ -28,8 +29,16 @@ type RedisTransport struct {
 func NewRedisTransport(address string, inputBinding string, outputBinding string) *RedisTransport {
 
 	// set some reasonable defaults
-	if address == "" {
+	if address == "" || address == ":6379" {
 		address = "localhost:6379"
+	} else  { // check if it has a port
+
+		match, _ := regexp.MatchString("^.+:\\d+$", address)
+		if !match {
+			log.Debugf("Appending default redis port :6379 to %s", address)
+			address = address + ":6379"
+		}
+
 	}
 	if inputBinding == "" {
 		inputBinding = "input"
