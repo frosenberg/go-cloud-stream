@@ -10,7 +10,7 @@ type Transport struct {
 // The TransportInterface allows connecting and disconnecting to a particular
 // Transport and managing its connectivity.
 type TransportInterface interface {
-	Connect() (err error)
+	Connect() (error)
 	Disconnect()
 }
 
@@ -21,7 +21,7 @@ type InputChannel interface {
 
 // An OutputChannel allows to send a Message to the channel.
 type OutputChannel interface {
-	Send(m *Message) (err error)
+	Send(m *Message) (error)
 }
 
 // An InputOutputChannel allow to receive and send message.

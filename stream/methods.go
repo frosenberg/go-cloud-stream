@@ -15,8 +15,12 @@ import (
 var (
 	debug         = kingpin.Flag("verbose", "Enable debug logging.").Short(byte('v')).Default("false").Bool()
 	redisAddress  = kingpin.Flag("spring.redis.host", "Address for the Redis server.").Default(":6379").OverrideDefaultFromEnvar("SPRING_REDIS_HOST").String()
+	redisSentinelNodes  = kingpin.Flag("spring.redis.sentinel.nodes", "Address for the Redis sentinel server.").OverrideDefaultFromEnvar("SPRING_REDIS_SENTINEL_NODES").String()
+	redisSentinelMaster  = kingpin.Flag("spring.redis.sentinel.master", "Address for the Redis master node.").Default("mymasters").OverrideDefaultFromEnvar("SPRING_REDIS_SENTINEL_MASTER").String()
 	inputBinding  = kingpin.Flag("spring.cloud.stream.bindings.input.destination", "Input Binding queue or topic.").Short(byte('i')).Default("input").String()
 	outputBinding = kingpin.Flag("spring.cloud.stream.bindings.output.destination", "Output Binding queue or topic.").Short(byte('o')).Default("output").String()
+
+	// not use currently beyond this point - planned to be used for health check
 	ServerPort    = kingpin.Flag("server.port", "HTTP Server port.").Default("8080").OverrideDefaultFromEnvar("SERVER_PORT").Short(byte('p')).String()
 
 	// TODO add deployment properties for partitioning
@@ -36,20 +40,24 @@ type CloudStreamModule interface {
 
 // Lazy initialize a transport
 func getTransport() api.TransportInterface {
+	log.Debugln("CLI Arguments:")
+	log.Debugln("\tredisAddress: ", *redisAddress)
+	log.Debugln("\tredisSentinelNodes: ", *redisSentinelNodes)
+	log.Debugln("\tredisSentinelMaster: ", *redisSentinelMaster)
+	log.Debugln("\tinputBinding: ", *inputBinding)
+	log.Debugln("\toutputBinding: ", *outputBinding)
 
 	// TODO init based on CLI setting
 	// TODO figure out CLI settings for this
 	if transport == nil {
-		redisTransport := redis.NewRedisTransport(*redisAddress, *inputBinding, *outputBinding)
 
-		log.Debugln("redisTransport.inputName: ", redisTransport.InputBinding)
-		log.Debugln("redisTransport.outputName: ", redisTransport.OutputBinding)
-
-		log.Debugln("CLI Arguments:")
-		log.Debugln("\tAddress: ", redisTransport.Address)
-		log.Debugln("\tMax: ", redisTransport.MaxConnections)
-		log.Debugln("\tOutput: ", redisTransport.OutputBinding)
-
+		var address string
+		if *redisSentinelNodes != "" {
+			address = *redisSentinelNodes
+		} else {
+			address = *redisAddress
+		}
+		redisTransport := redis.NewRedisTransport(address, *redisSentinelMaster, *inputBinding, *outputBinding)
 		transport = redisTransport
 	}
 	return transport.(api.TransportInterface)
@@ -115,18 +123,18 @@ func RunProcessor(fp api.Processor) {
 	defer getTransport().Disconnect()
 }
 
+func Cleanup() {
+	log.Debugln("Cleaning up")
+	if transport != nil {
+		getTransport().Disconnect()
+	}
+}
+
 
 func panicOnError(err error) {
 	if err != nil {
 		msg := fmt.Sprintf("Error while connecting to transport: %s", err.Error())
 		log.Fatalln(msg)
 		panic(msg)
-	}
-}
-
-func Cleanup() {
-	log.Debugln("Cleaning up")
-	if transport != nil {
-		getTransport().Disconnect()
 	}
 }

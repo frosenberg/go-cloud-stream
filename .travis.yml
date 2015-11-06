@@ -1,13 +1,14 @@
 language: go
 go:
 - 1.5
+services:
+- redis-server
 before_install:
+- redis-server etc/sentinel.conf --sentinel &
 - go get golang.org/x/tools/cmd/cover github.com/mattn/goveralls github.com/pierrre/gotestcover
 script:
 - gotestcover -covermode=count -coverprofile=coverage.out  ./...
 - goveralls -coverprofile=coverage.out -service=travis-ci -repotoken $COVERALLS_TOKEN
-services:
-- redis-server
 env:
   global:
     secure: hRWT25felfS2lfiSa9XJ/2ZOJS0wGIDSqTWVjBmZ+tGzZWK49oZQ7Gsbxj5SYxKma+m/Ko/AY/kzMVERXc+/4bFE5+NvTYizXXEbY8upAZl2QfQrwKbkmmjip+R3Q97I8lQrz2e12IJEGL66FXxY2oBwbH5h1D1XOyLTqPs14DK/ET9uL5YX9qrByHcdUyUS7DLHg8hUya01xkHf0Gg7UVBHKuoWYoOnpZwW1u1v87+qbrJixiax6KOKyf8jcGbktGRaPIIaLKkC7t82PB0Mb5qNWTvwGNnXlaldBXbria8HCGfCjI2nHhYvWeftVIpS6LW6G2GG7iuLXTDmGU5+w5H2T1MdkaYDgG4f6hJ8uHkqN2qT/s3NrEW2WVBnZ+rgG7KkJgIOkkdUrZVD+qbM5bv4IIg/Q+iyCq3A5XdMo/WijptFw132qdIq/N2sbg5M9osoeUW47MDWEEIQu35TSUFf1f0VLpe0FTBtheH2JABUozrPUzBeNcrpzSfuh6/GBeHEqaNvZD0f+YnOyNwJJDLVbvlj2oO3cUDnxhpTSsaz6R7tWUy1oAEKzt4rRM+Fjks9GwOtt+GlPai6LOYzLjH3J77p1o0EcbmWUarYeE/WDD3tl0dKLh612V5XCtH5/0vqclRqmHwXbolohiqEasKkG/M7jSuR+74LoYhDlsc=
