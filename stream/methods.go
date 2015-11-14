@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"fmt"
 )
 
 // all CLI variables
@@ -28,15 +27,6 @@ var (
 
 	transport = interface{}(nil)
 )
-
-// TODO not really needed as this point
-type CloudStreamModule interface {
-	Init()
-	RunSource(s api.Source)
-	RunSink(s api.Sink)
-	RunProcessor(p api.Processor)
-	Cleanup()
-}
 
 // Lazy initialize a transport
 func getTransport() api.TransportInterface {
@@ -61,21 +51,6 @@ func getTransport() api.TransportInterface {
 		transport = redisTransport
 	}
 	return transport.(api.TransportInterface)
-}
-
-// helper to cast the transport to an InputChannel
-func getInputChannel() api.InputChannel {
-	return transport.(api.InputChannel)
-}
-
-// helper to cast the transport to an OutputChannel
-func getOutputChannel() api.OutputChannel {
-	return transport.(api.OutputChannel)
-}
-
-// helper to cast the transport to an InputOutputChannel
-func getInputOutputChannel() api.InputOutputChannel {
-	return transport.(api.InputOutputChannel)
 }
 
 func Init() {
@@ -103,38 +78,32 @@ func Init() {
 // Executors for Source/Sink/Processor
 //
 func RunSource(fs api.Source) {
-	err := getTransport().Connect()
-	panicOnError(err)
-	fs(getOutputChannel())
-	defer getTransport().Disconnect()
+	transport := getTransport()
+	transport.Connect()
+	defer transport.Disconnect()
+
+	transport.RunSource(fs)
 }
 
 func RunSink(fs api.Sink) {
-	err := getTransport().Connect()
-	panicOnError(err)
-	fs(getInputChannel())
-	defer getTransport().Disconnect()
+	transport := getTransport()
+	transport.Connect()
+	defer transport.Disconnect()
+
+	transport.RunSink(fs)
 }
 
 func RunProcessor(fp api.Processor) {
-	err := getTransport().Connect()
-	panicOnError(err)
-	fp(getInputOutputChannel())
-	defer getTransport().Disconnect()
+	transport := getTransport()
+	transport.Connect()
+	defer transport.Disconnect()
+
+	transport.RunProcessor(fp)
 }
 
 func Cleanup() {
 	log.Debugln("Cleaning up")
 	if transport != nil {
 		getTransport().Disconnect()
-	}
-}
-
-
-func panicOnError(err error) {
-	if err != nil {
-		msg := fmt.Sprintf("Error while connecting to transport: %s", err.Error())
-		log.Fatalln(msg)
-		panic(msg)
 	}
 }
