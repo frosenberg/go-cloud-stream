@@ -7,18 +7,18 @@ import (
 	"sync"
 )
 
-func dummySource(ch api.OutputChannel) {
+func dummySource(ch chan<- *api.Message) {
 	// do nothing
 	log.Debug("Dummy source")
 }
 
-func dummySink(ch api.InputChannel) {
+func dummySink(ch <-chan *api.Message) {
 	// do nothing
 	log.Debug("Dummy sink")
 
 }
 
-func dummyProcessor(ch api.InputOutputChannel) {
+func dummyProcessor(input <-chan *api.Message, output chan<- *api.Message) {
 	// do nothing
 	log.Debug("Dummy processor")
 }

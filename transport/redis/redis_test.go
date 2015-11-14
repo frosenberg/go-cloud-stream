@@ -5,10 +5,16 @@ import (
 	"github.com/frosenberg/go-cloud-stream/api"
 	"github.com/mediocregopher/radix.v2/redis"
 	"os"
-	"reflect"
-	"sync"
 	"testing"
+	"fmt"
 	"time"
+)
+
+var (
+	senderChan = make(chan string, 1)
+	receiverChan = make(chan string, 1)
+	bridgeChan = make(chan string, 1)
+	maxMessages = 150
 )
 
 func init() {
@@ -105,99 +111,260 @@ func TestDisconnectWithoutConnecting(t *testing.T) {
 }
 
 func TestSendingAndReceiveWithQueueSingleHost(t *testing.T) {
-	redis := NewRedisTransport(getRedisHost(), "", "queue:test-123", "queue:test-123")
+	queueName := fmt.Sprintf("queue:test-%d", time.Now().UnixNano())
+	redis := NewRedisTransport(getRedisHost(), "", queueName, queueName)
+
+	redis.Connect()
+	log.Debugf("TestSendingAndReceiveWithQueueSingleHost.queueName: %s", queueName)
+
 	sendAndReceiveWithQueueInternal(t, redis)
+	defer redis.Disconnect()
 }
 
 func TestSendingAndReceiveWithQueueSentinel(t *testing.T) {
-	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), "queue:test-123", "queue:test-123")
+	queueName := fmt.Sprintf("queue:test-%d", time.Now().UnixNano())
+	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), queueName, queueName)
+
+	redis.Connect()
+	log.Debugf("TestSendingAndReceiveWithQueueSingleHost.queueName: %s", queueName)
+
 	sendAndReceiveWithQueueInternal(t, redis)
+	defer redis.Disconnect()
+}
+
+func TestProcessorWithQueueSingleHost(t *testing.T) {
+
+	inputQueue0 := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
+	outputQueue0 := fmt.Sprintf("queue:output0-%d", time.Now().UnixNano())
+	r1 := NewRedisTransport(getRedisHost(), "", inputQueue0, outputQueue0)
+	r1.Connect()
+	defer r1.Disconnect()
+
+	inputQueue1 := outputQueue0
+	outputQueue1 := fmt.Sprintf("queue:output1-%d", time.Now().UnixNano())
+	r2 := NewRedisTransport(getRedisHost(), "", inputQueue1, outputQueue1)
+	r2.Connect()
+	defer r2.Disconnect()
+
+	inputQueue2 := outputQueue1
+	outputQueue2 := fmt.Sprintf("queue:output2-%d", time.Now().UnixNano())
+	r3 := NewRedisTransport(getRedisHost(), "", inputQueue2, outputQueue2)
+	r3.Connect()
+	defer r3.Disconnect()
+
+	processorWithQueueInternal(t, r1, r2, r3)
+
+}
+
+func TestProcessorWithQueueSentinelHost(t *testing.T) {
+
+	inputQueue0 := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
+	outputQueue0 := fmt.Sprintf("queue:output0-%d", time.Now().UnixNano())
+	r1 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue0, outputQueue0)
+	r1.Connect()
+	defer r1.Disconnect()
+
+	inputQueue1 := outputQueue0
+	outputQueue1 := fmt.Sprintf("queue:output1-%d", time.Now().UnixNano())
+	r2 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue1, outputQueue1)
+	r2.Connect()
+	defer r2.Disconnect()
+
+	inputQueue2 := outputQueue1
+	outputQueue2 := fmt.Sprintf("queue:output2-%d", time.Now().UnixNano())
+	r3 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue2, outputQueue2)
+	r3.Connect()
+	defer r3.Disconnect()
+
+	processorWithQueueInternal(t, r1, r2, r3)
+
+}
+
+func TestProcessorWithTopicOnSingleHost(t *testing.T) {
+
+	inputTopic0 := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
+	outputTopic0 := fmt.Sprintf("topic:output0-%d", time.Now().UnixNano())
+	r1 := NewRedisTransport(getRedisHost(), "", inputTopic0, outputTopic0)
+	r1.Connect()
+	defer r1.Disconnect()
+
+	inputTopic1 := outputTopic0
+	outputTopic1 := fmt.Sprintf("topic:output1-%d", time.Now().UnixNano())
+	r2 := NewRedisTransport(getRedisHost(), "", inputTopic1, outputTopic1)
+	r2.Connect()
+	defer r2.Disconnect()
+
+	inputTopic2 := outputTopic1
+	outputTopic2 := fmt.Sprintf("topic:output2-%d", time.Now().UnixNano())
+	r3 := NewRedisTransport(getRedisHost(), "", inputTopic2, outputTopic2)
+	r3.Connect()
+	defer r3.Disconnect()
+
+	processorWithTopicInternal(t, r1, r2, r3)
+}
+
+func TestProcessorWithTopicOnSentinelHost(t *testing.T) {
+
+	inputTopic0 := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
+	outputTopic0 := fmt.Sprintf("topic:output0-%d", time.Now().UnixNano())
+	r1 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic0, outputTopic0)
+	r1.Connect()
+	defer r1.Disconnect()
+
+	inputTopic1 := outputTopic0
+	outputTopic1 := fmt.Sprintf("topic:output1-%d", time.Now().UnixNano())
+	r2 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic1, outputTopic1)
+	r2.Connect()
+	defer r2.Disconnect()
+
+	inputTopic2 := outputTopic1
+	outputTopic2 := fmt.Sprintf("topic:output2-%d", time.Now().UnixNano())
+	r3 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic2, outputTopic2)
+	r3.Connect()
+	defer r3.Disconnect()
+
+	processorWithTopicInternal(t, r1, r2, r3)
+}
+
+
+func countingSource(output chan<- *api.Message) {
+	log.Debugln("countingSource started")
+
+	for i := 0; i < maxMessages; i++ {
+		log.Debugf("Sending message: %d", i)
+		output <- api.NewTextMessage([]byte(fmt.Sprintf("message: %d", i)))
+	}
+	senderChan<- "countingSource"
+}
+
+func countingSink(input <-chan *api.Message) {
+	log.Debugln("countingSink started")
+
+	for i := 0; i < maxMessages; i++ {
+		msg := <-input
+		log.Debugln("Received message: ", msg)
+	}
+	receiverChan<- "countingSink"
+}
+
+func bridgeFunc(input <-chan *api.Message, output chan<- *api.Message) {
+	log.Debugln("bridgeFunc started")
+
+	for i := 0; i < maxMessages; i++ {
+		msg := <-input
+		log.Debugf("Bridge received %s", msg)
+		output <- msg
+	}
+	bridgeChan<- "bridgeChan"
+}
+
+func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTransport, r3 *RedisTransport) {
+
+	go func() {
+		r1.RunSource(countingSource)
+	}()
+
+	// wait 2 seconds for sending to finish
+	select {
+	case res := <-senderChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 2):
+		t.Fatalf("Sending did not finish in time")
+	}
+
+	go func() {
+		r2.RunProcessor(bridgeFunc)
+	}()
+
+	// wait 2 seconds for bridge to finish
+	select {
+	case res := <-bridgeChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 2):
+		t.Fatalf("Bridiging did not finish in time")
+	}
+
+	go func() {
+		r3.RunSink(countingSink)
+	}()
+
+	// wait 2 seconds for sending to finish (it will timeout if maxMessages messages have not been received)
+	select {
+	case res := <-receiverChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 2):
+		t.Fatalf("Receiving did not finish in time")
+	}
+}
+
+func processorWithTopicInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTransport, r3 *RedisTransport) {
+
+	go func() {
+		r2.RunProcessor(bridgeFunc)
+	}()
+
+	go func() {
+		r3.RunSink(countingSink)
+	}()
+
+	go func() {
+		time.Sleep(2 * time.Second)
+		r1.RunSource(countingSource)
+	}()
+
+	// wait 5 seconds for sending to finish
+	select {
+	case res := <-senderChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("Sending did not finish in time")
+	}
+
+	// wait 5 seconds for bridge to finish
+	select {
+	case res := <-bridgeChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("Bridiging did not finish in time")
+	}
+
+	// wait 5 seconds for sending to finish (it will timeout if maxMessages messages have not been received)
+	select {
+	case res := <-receiverChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("Receiving did not finish in time")
+	}
 }
 
 func sendAndReceiveWithQueueInternal(t *testing.T, redis *RedisTransport) {
-	redis.Connect()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// receiver
-	go func() {
-		out := redis.Receive()
-		msg := <-out
-		if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
-			t.Fatalf("Message does not contain correct payload.")
-		} else {
-			log.Debugln("Received message: ", msg)
-		}
-		wg.Done()
-	}()
 
 	// sender
 	go func() {
-		time.Sleep(250 * time.Millisecond) // give the receiver some time to get ready
-
-		// hack should only be one message
-		redis.Send(api.NewTextMessage([]byte("foobar")))
-		redis.Send(api.NewTextMessage([]byte("foobar")))
-
-		wg.Done()
+		redis.RunSource(countingSource)
 	}()
 
-	wg.Wait()
-	redis.Disconnect()
-}
-
-func TestSendingAndReceiveWithTopicSingleHost(t *testing.T) {
-	redis := NewRedisTransport(getRedisHost(), "", "topic:test-123", "topic:test-123")
-	sendReceiveWithTopicInternal(t, redis)
-}
-
-func TestSendingAndReceiveWithTopicSentinel(t *testing.T) {
-	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), "topic:test-123", "topic:test-123")
-	sendReceiveWithTopicInternal(t, redis)
-}
-
-func sendReceiveWithTopicInternal(t *testing.T, redis *RedisTransport) {
-	redis.Connect()
-
-	var wg sync.WaitGroup
-	wg.Add(3)
-
-	// receiver 1
-	go func() {
-		subscribe(t, redis)
-		wg.Done()
-	}()
-
-	// receiver 2
-	go func() {
-		subscribe(t, redis)
-		wg.Done()
-	}()
-
-	// sender
-	go func() {
-		time.Sleep(250 * time.Millisecond) // give the receiver some time to get ready
-		redis.Send(api.NewTextMessage([]byte("foobar")))
-		wg.Done()
-	}()
-
-	wg.Wait()
-	redis.Disconnect()
-}
-
-//
-// Helper methods
-//
-func subscribe(t *testing.T, redis *RedisTransport) {
-	out := redis.Receive()
-	msg := <-out
-	log.Debug("receiver2 message: ", msg)
-	if !reflect.DeepEqual(msg.Content, []byte("foobar")) {
-		t.Fatalf("Message does not contain correct payload.")
-	} else {
-		log.Debugln("msg.content: ", msg.Content)
+	// wait 2 seconds for sending to finish
+	select {
+	case res := <-senderChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 2):
+		t.Fatalf("Sending did not finish in time")
 	}
+
+	//	receiver
+	go func() {
+		redis.RunSink(countingSink)
+	}()
+
+	// wait 2 seconds for sending to finish (it will timeout if 100 messages have not been received
+	select {
+	case res := <-receiverChan:
+		log.Debugln(res)
+	case <-time.After(time.Second * 2):
+		t.Fatalf("Sending and receiving did not finish in time")
+	}
+
 }
 
 func getRedisHost() string {
@@ -227,12 +394,22 @@ func getRedisMaster() string {
 
 	// Redis is needed to run this test
 func pingRedis() *redis.Client {
+
 	redisClient, err := redis.Dial("tcp", getRedisHost())
 	if err != nil {
-		log.Infoln("Cannot find Redis at 'localhost:6379'.")
-		log.Infoln("Please start a local redis or specify TEST_REDIS_HOST or TEST_REDIS_SENTINEL_HOST variable.")
-		panic("Cannot find Redis server.")
+		log.Warnln("Cannot find Redis (standalone) at 'localhost:6379'.")
+		log.Infoln("Trying to connect to Redis sentinel ...")
+
+		redisClient2, err2 := redis.Dial("tcp", getRedisSentinelHost())
+		if err2 != nil {
+			log.Infoln("Please start a local Redis or Redis sentinel.")
+			log.Infoln("Please specify TEST_REDIS_HOST or TEST_REDIS_SENTINEL_HOST (and optionally TEST_REDIS_MASTER)")
+			panic("Cannot find Redis server.")
+		}
+		log.Infof("Successfully connected to Redis Sentinel '%s'", redisClient2.Addr)
+		return redisClient2
 	}
+	log.Infof("Successfully connected to Redis '%s'", redisClient.Addr)
 	return redisClient
 }
 

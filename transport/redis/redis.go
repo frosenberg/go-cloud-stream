@@ -24,8 +24,8 @@ type RedisTransport struct {
 	Timeout int
 
 	MaxConnections int
-	pool           *pool.Pool
 
+	pool           *pool.Pool
 	sentinelClient *sentinel.Client
 }
 
@@ -63,145 +63,201 @@ func NewRedisTransport(address string, sentinelMaster string, inputBinding strin
 }
 
 func (t *RedisTransport) Connect() (error) {
-	log.Debugln("Connecting to Redis server: ", t.Address)
 
-	if t.isSingleRedis() {// connect to single redis
+	// TODO add retries in case of failures
 
-		// create redis pool
-		pool, err := pool.New("tcp", t.Address, t.MaxConnections)
+	if t.isSentinel() {
+
+		client, err := sentinel.NewClient("tcp", t.Address, t.MaxConnections, t.SentinelMaster)
 		if err != nil {
-			log.Debug("Cannot connect to Redis host: %s", err.Error())
-			return err
-		}
-		t.pool = pool
-
-	} else { // connect to sentinel
-
-		client, err := sentinel.NewClient("tcp", t.Address, 100, t.SentinelMaster)
-		if err != nil {
-			log.Debug("Cannot connect to Redis sentinel host: %s", err)
+			msg := fmt.Sprintf("Cannot connect to Redis host '%s': %s", t.Address, err)
+			log.Errorln(msg)
 			return err
 		}
 		t.sentinelClient = client
 
+	} else { // Redis standalone
+
+		// create redis pool
+		pool, err := pool.New("tcp", t.Address, t.MaxConnections)
+		if err != nil {
+			msg := fmt.Sprintf("Cannot connect to Redis host '%s': %s", t.Address, err)
+			log.Errorln(msg)
+			return err
+		}
+		t.pool = pool
 	}
 
-	// do a ping to ensure we are connected
-	conn, err := t.getRedisClient()
+	// ping to ensure we are really connected
+	conn, err := t.getConnection()
+	defer conn.Close()
+
 	if err != nil {
+		log.Fatalf("Cannot ping to Redis host: %s", err.Error())
 		return err
 	}
+	t.pingRedis(conn)
 
-	resp := conn.Cmd("PING")
-	if resp.Err != nil {
-		log.Debugln("Cannot while pinging Redis.")
-		return resp.Err
-	}
 	return nil
 }
+
+func (t *RedisTransport) RunSource(sourceFunc api.Source) {
+	log.Debugf("RunSource called ...")
+
+	channel := make(chan *api.Message)
+
+	if t.isOutputTopicSemantics() {
+		go t.publish(channel)
+	} else {
+		go t.push(channel)
+	}
+
+	sourceFunc(channel)
+}
+
+func (t *RedisTransport) RunSink(sinkFunc api.Sink) {
+
+	channel := make(chan *api.Message)
+
+	if t.isInputTopicSemantics() {
+		go t.subscribe(channel) // topic processing
+	} else {
+		go t.pop(channel) // queue processing
+	}
+
+	sinkFunc(channel)
+}
+
+func (t *RedisTransport) RunProcessor(processorFunc api.Processor) {
+
+	inputCh := make(chan *api.Message)
+	outputCh := make(chan *api.Message)
+
+	if t.isInputTopicSemantics() { // topic processing
+
+		go t.subscribe(inputCh)
+		go t.publish(outputCh)
+
+	} else { // queue processing
+
+		go t.push(outputCh)
+		go t.pop(inputCh)
+	}
+
+	processorFunc(inputCh, outputCh)
+}
+
 
 // Disconnects from the Redis transport. It does not fai
 // if you are not connected.
 func (t *RedisTransport) Disconnect() {
 	log.Debugln("Disconnecting from Redis: ", t.Address)
 
-	// nothing to do really
+	// nothing to do for now
 }
 
-func (t *RedisTransport) Send(m *api.Message) (error) {
+func (t *RedisTransport) publish(channel chan *api.Message) {
+	conn, _ := t.getConnection()
+	defer conn.Close()
 
-	if t.isOutputTopicSemantics() {
-		conn, err := t.getRedisClient()
-		if err != nil {
-			return err
-		}
+	for {
+		m := <-channel
 		resp := conn.Cmd("PUBLISH", t.OutputBinding, m.ToRawByteArray())
 		log.Debugln("resp (publish): ", resp)
 		if resp.Err != nil {
-			log.Errorf("Cannot PUBLISH on queue '%v': %v", t.OutputBinding, err)
-			return err
+			log.Errorf("Cannot PUBLISH on queue '%v': %v", t.OutputBinding, resp.Err)
 		} else {
 			log.Debugf("Published '%s' to topic '%s'\n", m.Content, t.OutputBinding)
 		}
-	} else {
-		conn, err := t.getRedisClient()
-		defer conn.Close()
-		if err != nil {
-			log.Errorf("Error getting redis client: %s", err.Error())
-			return err
-		}
-		resp := conn.Cmd("RPUSH", t.OutputBinding, m.ToRawByteArray())
+	}
+}
+
+func (t *RedisTransport) subscribe(channel chan *api.Message) {
+	conn, _ := t.getConnection() // todo handle messages better
+	defer conn.Close()
+
+	psc := pubsub.NewSubClient(conn)
+	subClient := psc.Subscribe(t.InputBinding)
+	log.Debugf("Processor subscribing to: %s", subClient)
+	defer psc.Unsubscribe(t.InputBinding)
+
+	for {
+		resp := psc.Receive()
+		//log.Debugln("after: ", resp)
+
 		if resp.Err != nil {
-			log.Errorf("Cannot RPUSH on queue '%v': %v", t.OutputBinding, err)
-			return err
+			channel <- api.NewMessageFromRawBytes([]byte(resp.Err.Error()))
+		} else {
+			channel <- api.NewMessageFromRawBytes([]byte(resp.Message))
+		}
+	}
+}
+
+func (t *RedisTransport) push(channel chan *api.Message) {
+	conn, _ := t.getConnection()
+	defer conn.Close()
+
+	for {
+		m := <-channel
+		resp := conn.Cmd("RPUSH", t.OutputBinding, m.ToRawByteArray())
+		//log.Debugln("resp (RPUSH): ", resp)
+		if resp.Err != nil {
+			log.Errorf("Cannot RPUSH on queue '%v': %v", t.OutputBinding, resp.Err)
 		} else {
 			log.Debugf("Pushed '%s' to queue '%s'\n", m.Content, t.OutputBinding)
 		}
-
 	}
+}
+
+func (t *RedisTransport) pop(channel chan *api.Message) {
+	conn, _ := t.getConnection()
+	defer conn.Close()
+
+	for {
+		content, err := conn.Cmd("BRPOP", t.InputBinding, 0).List()
+		if err != nil {
+			log.Errorf("Cannot BRPOP on '%v': %v", t.InputBinding, err)
+		} else {
+			channel <- api.NewMessageFromRawBytes([]byte(content[1]))
+		}
+	}
+}
+
+
+// Pings redis to check whether the connection works. A connectTo...() methods needs
+// to be called before.
+func (t *RedisTransport) pingRedis(client *redis.Client) (error) {
+
+	resp := client.Cmd("PING")
+	if resp.Err != nil {
+		msg := fmt.Sprintf("Cannot connect to Redis host '%s': %s", t.Address,  resp.Err)
+		log.Fatal(msg)
+		return resp.Err
+	}
+
 	return nil
 }
 
-func (t *RedisTransport) Receive() <-chan api.Message {
-	out := make(chan api.Message)
-
-	if t.isInputTopicSemantics() { // topic processing
-
-		go func() {
-			conn, _ := t.getRedisClient()
-			psc := pubsub.NewSubClient(conn)
-			psc.Subscribe(t.InputBinding)
-			defer psc.Unsubscribe(t.InputBinding)
-
-			for {
-				resp := psc.Receive()
-				//log.Debugln("after: ", resp)
-
-				if resp.Err != nil {
-					out <- *api.NewMessageFromRawBytes([]byte(resp.Err.Error()))
-				} else {
-					out <- *api.NewMessageFromRawBytes([]byte(resp.Message))
-				}
-			}
-		}()
-
-	} else { // queue processing
-
-		go func() {
-			conn, _ := t.getRedisClient()
-			log.Debugln("conn: ", conn.Addr)
-			for {
-				content, err := conn.Cmd("BRPOP", t.InputBinding, 0).List()
-				if err != nil {
-					log.Errorf("Cannot RPOP on '%v': %v", t.InputBinding, err)
-				} else {
-					//log.Debugln(content)
-					out <- *api.NewMessageFromRawBytes([]byte(content[1]))
-				}
-			}
-		}()
-	}
-	return out
-}
-
-// Returns a redis.Client instance either connected to a single
-// Redis host or via a Sentinel.
-func (t *RedisTransport) getRedisClient() (*redis.Client, error) {
-
+func (t *RedisTransport) getConnection() (*redis.Client, error) {
 	if t.isSentinel() {
-		log.Debugln("SENTINEL CLIENT: ", t.sentinelClient)
+
 		conn, err := t.sentinelClient.GetMaster(t.SentinelMaster)
 		if err != nil {
 			return nil, err
 		}
 		defer t.sentinelClient.PutMaster(t.SentinelMaster, conn)
 		return conn, nil
+
 	} else {
+
 		conn, err := t.pool.Get()
+		defer t.pool.Put(conn)
+
 		if err != nil {
 			return nil, err
 		}
-		defer t.pool.Put(conn)
+
+		t.pingRedis(conn)
 		return conn, nil
 	}
 }
