@@ -1,20 +1,20 @@
 package redis
 
 import (
+	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
 	"github.com/mediocregopher/radix.v2/redis"
 	"os"
 	"testing"
-	"fmt"
 	"time"
 )
 
 var (
-	senderChan = make(chan string, 1)
+	senderChan   = make(chan string, 1)
 	receiverChan = make(chan string, 1)
-	bridgeChan = make(chan string, 1)
-	maxMessages = 150
+	bridgeChan   = make(chan string, 1)
+	maxMessages  = 150
 )
 
 func init() {
@@ -27,7 +27,7 @@ func TestNewRedisTransportEmpty0(t *testing.T) {
 	r := NewRedisTransport(":6379", "", "", "")
 
 	if r.Address != "localhost:6379" {
-		t.Fatalf("Unexpected redis address: ", r.Address)
+		t.Fatalf("Unexpected redis address: %s", r.Address)
 	}
 }
 
@@ -35,7 +35,7 @@ func TestNewRedisTransportEmpty1(t *testing.T) {
 	r := NewRedisTransport("localhost", "", "", "")
 
 	if r.Address != "localhost:6379" {
-		t.Fatalf("Unexpected redis address: ", r.Address)
+		t.Fatalf("Unexpected redis address: %s", r.Address)
 	}
 }
 
@@ -43,16 +43,16 @@ func TestNewRedisTransportEmpty2(t *testing.T) {
 	r := NewRedisTransport("", "mymaster", "", "")
 
 	if r.Address != "localhost:6379" {
-		t.Fatalf("Unexpected redis address: ", r.Address)
+		t.Fatalf("Unexpected redis address: %s", r.Address)
 	}
 	if r.SentinelMaster != "mymaster" {
-		t.Fatalf("Unexpected sentinel master: ", r.SentinelMaster)
+		t.Fatalf("Unexpected sentinel master: %s ", r.SentinelMaster)
 	}
 	if r.InputBinding != "queue.input" {
-		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+		t.Fatalf("Unexpected input binding: %s", r.InputBinding)
 	}
 	if r.OutputBinding != "queue.output" {
-		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+		t.Fatalf("Unexpected output binding: %s", r.OutputBinding)
 	}
 }
 
@@ -60,10 +60,10 @@ func TestNewRedisTransportQueue(t *testing.T) {
 	r := NewRedisTransport("", "", "queue:foo", "queue:bar")
 
 	if r.InputBinding != "queue.foo" {
-		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+		t.Fatalf("Unexpected input binding: %s", r.InputBinding)
 	}
 	if r.OutputBinding != "queue.bar" {
-		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+		t.Fatalf("Unexpected output binding: %s", r.OutputBinding)
 	}
 }
 
@@ -71,10 +71,10 @@ func TestNewRedisTransportTopic(t *testing.T) {
 	r := NewRedisTransport("", "", "topic:foo", "topic:bar")
 
 	if r.InputBinding != "topic.foo" {
-		t.Fatalf("Unexpected input binding: ", r.InputBinding)
+		t.Fatalf("Unexpected input binding: %s", r.InputBinding)
 	}
 	if r.OutputBinding != "topic.bar" {
-		t.Fatalf("Unexpected output binding: ", r.OutputBinding)
+		t.Fatalf("Unexpected output binding: %s", r.OutputBinding)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestConnectToNotExistingRedis(t *testing.T) {
 	err := redis.Connect()
 	if err == nil { // expect an error
 		log.Debugln("Error: ", err)
-		t.Fatalf("Expected connection to fail but it passed.")
+		t.Fatal("Expected connection to fail but it passed.")
 	}
 }
 
@@ -91,7 +91,7 @@ func TestConnectToExistingSingleRedis(t *testing.T) {
 	redis := NewRedisTransport(getRedisHost(), "", "input", "ouput")
 	err := redis.Connect()
 	if err != nil {
-		t.Fatalf("Expected connection not established.")
+		t.Fatal("Expected connection not established.")
 	}
 	redis.Disconnect()
 }
@@ -100,7 +100,7 @@ func TestConnectToExistingSentinelRedis(t *testing.T) {
 	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), "input", "ouput")
 	err := redis.Connect()
 	if err != nil {
-		t.Fatalf("Expected connection not established.")
+		t.Fatal("Expected connection not established.")
 	}
 	redis.Disconnect()
 }
@@ -226,7 +226,6 @@ func TestProcessorWithTopicOnSentinelHost(t *testing.T) {
 	processorWithTopicInternal(t, r1, r2, r3)
 }
 
-
 func countingSource(output chan<- *api.Message) {
 	log.Debugln("countingSource started")
 
@@ -234,7 +233,7 @@ func countingSource(output chan<- *api.Message) {
 		log.Debugf("Sending message: %d", i)
 		output <- api.NewTextMessage([]byte(fmt.Sprintf("message: %d", i)))
 	}
-	senderChan<- "countingSource"
+	senderChan <- "countingSource"
 }
 
 func countingSink(input <-chan *api.Message) {
@@ -244,7 +243,7 @@ func countingSink(input <-chan *api.Message) {
 		msg := <-input
 		log.Debugln("Received message: ", msg)
 	}
-	receiverChan<- "countingSink"
+	receiverChan <- "countingSink"
 }
 
 func bridgeFunc(input <-chan *api.Message, output chan<- *api.Message) {
@@ -255,7 +254,7 @@ func bridgeFunc(input <-chan *api.Message, output chan<- *api.Message) {
 		log.Debugf("Bridge received %s", msg)
 		output <- msg
 	}
-	bridgeChan<- "bridgeChan"
+	bridgeChan <- "bridgeChan"
 }
 
 func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTransport, r3 *RedisTransport) {
@@ -269,7 +268,7 @@ func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	case res := <-senderChan:
 		log.Debugln(res)
 	case <-time.After(time.Second * 2):
-		t.Fatalf("Sending did not finish in time")
+		t.Fatal("Sending did not finish in time")
 	}
 
 	go func() {
@@ -281,7 +280,7 @@ func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	case res := <-bridgeChan:
 		log.Debugln(res)
 	case <-time.After(time.Second * 2):
-		t.Fatalf("Bridiging did not finish in time")
+		t.Fatal("Bridiging did not finish in time")
 	}
 
 	go func() {
@@ -293,7 +292,7 @@ func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	case res := <-receiverChan:
 		log.Debugln(res)
 	case <-time.After(time.Second * 2):
-		t.Fatalf("Receiving did not finish in time")
+		t.Fatal("Receiving did not finish in time")
 	}
 }
 
@@ -317,7 +316,7 @@ func processorWithTopicInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	case res := <-senderChan:
 		log.Debugln(res)
 	case <-time.After(time.Second * 5):
-		t.Fatalf("Sending did not finish in time")
+		t.Fatal("Sending did not finish in time")
 	}
 
 	// wait 5 seconds for bridge to finish
@@ -325,7 +324,7 @@ func processorWithTopicInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	case res := <-bridgeChan:
 		log.Debugln(res)
 	case <-time.After(time.Second * 5):
-		t.Fatalf("Bridiging did not finish in time")
+		t.Fatal("Bridiging did not finish in time")
 	}
 
 	// wait 5 seconds for sending to finish (it will timeout if maxMessages messages have not been received)
@@ -375,7 +374,6 @@ func getRedisHost() string {
 	return redisHost
 }
 
-
 func getRedisSentinelHost() string {
 	redisHost, set := os.LookupEnv("TEST_REDIS_SENTINEL_HOST")
 	if !set {
@@ -392,7 +390,7 @@ func getRedisMaster() string {
 	return master
 }
 
-	// Redis is needed to run this test
+// Redis is needed to run this test
 func pingRedis() *redis.Client {
 
 	redisClient, err := redis.Dial("tcp", getRedisHost())

@@ -4,6 +4,10 @@ go:
 services:
 - redis-server
 before_install:
+- wget http://www.us.apache.org/dist/kafka/0.8.2.2/kafka_2.10-0.8.2.2.tgz -O kafka.tgz
+- mkdir -p kafka && tar xzf kafka.tgz -C kafka --strip-components 1
+- nohup bash -c "cd kafka && bin/zookeeper-server-start.sh config/zookeeper.properties &"
+- nohup bash -c "cd kafka && bin/kafka-server-start.sh config/server.properties &"
 - redis-server etc/sentinel.conf --sentinel &
 - go get golang.org/x/tools/cmd/cover github.com/mattn/goveralls github.com/pierrre/gotestcover
 script:

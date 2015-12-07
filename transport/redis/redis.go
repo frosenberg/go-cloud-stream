@@ -4,12 +4,12 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
+	"github.com/frosenberg/go-cloud-stream/transport"
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/pubsub"
-	"strings"
-	"regexp"
-	"github.com/mediocregopher/radix.v2/sentinel"
 	"github.com/mediocregopher/radix.v2/redis"
+	"github.com/mediocregopher/radix.v2/sentinel"
+	"regexp"
 )
 
 //
@@ -17,7 +17,7 @@ import (
 //
 type RedisTransport struct {
 	api.Transport
-	Address string
+	Address        string
 	SentinelMaster string
 
 	// Timeout for blocking receives in seconds
@@ -36,7 +36,7 @@ func NewRedisTransport(address string, sentinelMaster string, inputBinding strin
 	// set some reasonable defaults
 	if address == "" || address == ":6379" {
 		address = "localhost:6379"
-	} else  { // check if it has a port
+	} else { // check if it has a port
 
 		match, _ := regexp.MatchString("^.+:\\d+$", address)
 		if !match {
@@ -52,17 +52,21 @@ func NewRedisTransport(address string, sentinelMaster string, inputBinding strin
 	}
 
 	transport := &RedisTransport{
-		Transport: api.Transport{InputBinding: prefix(inputBinding),
-			OutputBinding: prefix(outputBinding)},
+		Transport: api.Transport{
+			InputBinding:   transport.Prefix(inputBinding),
+			InputSemantic:  transport.GetBindingSemantic(inputBinding),
+			OutputBinding:  transport.Prefix(outputBinding),
+			OutputSemantic: transport.GetBindingSemantic(outputBinding),
+		},
 		Address:        address,
 		SentinelMaster: sentinelMaster,
-		Timeout:        1,  // TODO parameterize via CLI?
+		Timeout:        1,   // TODO parameterize via CLI?
 		MaxConnections: 100, // TODO parameterize via CLI?
 	}
 	return transport
 }
 
-func (t *RedisTransport) Connect() (error) {
+func (t *RedisTransport) Connect() error {
 
 	// TODO add retries in case of failures
 
@@ -106,7 +110,7 @@ func (t *RedisTransport) RunSource(sourceFunc api.Source) {
 
 	channel := make(chan *api.Message)
 
-	if t.isOutputTopicSemantics() {
+	if t.OutputSemantic == api.TopicSemantic {
 		go t.publish(channel)
 	} else {
 		go t.push(channel)
@@ -119,7 +123,7 @@ func (t *RedisTransport) RunSink(sinkFunc api.Sink) {
 
 	channel := make(chan *api.Message)
 
-	if t.isInputTopicSemantics() {
+	if t.InputSemantic == api.TopicSemantic {
 		go t.subscribe(channel) // topic processing
 	} else {
 		go t.pop(channel) // queue processing
@@ -133,7 +137,7 @@ func (t *RedisTransport) RunProcessor(processorFunc api.Processor) {
 	inputCh := make(chan *api.Message)
 	outputCh := make(chan *api.Message)
 
-	if t.isInputTopicSemantics() { // topic processing
+	if t.InputSemantic == api.TopicSemantic { // topic processing
 
 		go t.subscribe(inputCh)
 		go t.publish(outputCh)
@@ -147,7 +151,6 @@ func (t *RedisTransport) RunProcessor(processorFunc api.Processor) {
 	processorFunc(inputCh, outputCh)
 }
 
-
 // Disconnects from the Redis transport. It does not fai
 // if you are not connected.
 func (t *RedisTransport) Disconnect() {
@@ -160,8 +163,7 @@ func (t *RedisTransport) publish(channel chan *api.Message) {
 	conn, _ := t.getConnection()
 	defer conn.Close()
 
-	for {
-		m := <-channel
+	for m := range channel {
 		resp := conn.Cmd("PUBLISH", t.OutputBinding, m.ToRawByteArray())
 		log.Debugln("resp (publish): ", resp)
 		if resp.Err != nil {
@@ -193,12 +195,11 @@ func (t *RedisTransport) subscribe(channel chan *api.Message) {
 	}
 }
 
-func (t *RedisTransport) push(channel chan *api.Message) {
+func (t *RedisTransport) push(channel <-chan *api.Message) {
 	conn, _ := t.getConnection()
 	defer conn.Close()
 
-	for {
-		m := <-channel
+	for m := range channel {
 		resp := conn.Cmd("RPUSH", t.OutputBinding, m.ToRawByteArray())
 		//log.Debugln("resp (RPUSH): ", resp)
 		if resp.Err != nil {
@@ -223,14 +224,13 @@ func (t *RedisTransport) pop(channel chan *api.Message) {
 	}
 }
 
-
 // Pings redis to check whether the connection works. A connectTo...() methods needs
 // to be called before.
-func (t *RedisTransport) pingRedis(client *redis.Client) (error) {
+func (t *RedisTransport) pingRedis(client *redis.Client) error {
 
 	resp := client.Cmd("PING")
 	if resp.Err != nil {
-		msg := fmt.Sprintf("Cannot connect to Redis host '%s': %s", t.Address,  resp.Err)
+		msg := fmt.Sprintf("Cannot connect to Redis host '%s': %s", t.Address, resp.Err)
 		log.Fatal(msg)
 		return resp.Err
 	}
@@ -268,27 +268,4 @@ func (t *RedisTransport) isSentinel() bool {
 
 func (t *RedisTransport) isSingleRedis() bool {
 	return t.SentinelMaster == ""
-}
-
-func (t *RedisTransport) isOutputTopicSemantics() bool {
-	return strings.HasPrefix(t.OutputBinding, "topic.")
-}
-
-func (t *RedisTransport) isInputTopicSemantics() bool {
-	return strings.HasPrefix(t.InputBinding, "topic.")
-}
-
-// Set the prefix of a binding correctly as it is
-// expected by the underlying transformer.
-
-func prefix(binding string) string {
-	if strings.HasPrefix(binding, "topic:") {
-		return strings.Replace(binding, "topic:", "topic.", 1)
-	}
-
-	if strings.HasPrefix(binding, "queue:") {
-		return strings.Replace(binding, "queue:", "queue.", 1)
-	} else {
-		return fmt.Sprintf("queue.%s", binding)
-	}
 }

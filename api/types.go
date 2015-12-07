@@ -1,10 +1,21 @@
 package api
 
+// Define the possible semantic of an input and output channel.
+type BindingSemantic string
+
+// The two possible binding semantics
+const (
+	TopicSemantic BindingSemantic = "topic"
+	QueueSemantic BindingSemantic = "queue"
+)
+
 // A Transport is the underlying mechanism for sending and receiving messages
 // between individual modules. Examples could be Redis, Kafka, RabbitMQ, etc.
 type Transport struct {
-	InputBinding  string
-	OutputBinding string
+	InputBinding   string
+	InputSemantic  BindingSemantic
+	OutputBinding  string
+	OutputSemantic BindingSemantic
 }
 
 // The TransportInterface allows connecting and disconnecting to a particular
@@ -13,7 +24,7 @@ type TransportInterface interface {
 
 	// Connects to the underlying transport mechanism. In case of connectivity
 	// issue it will retry a number of time and then fail.
-	Connect() (error)
+	Connect() error
 
 	// Executes a source "module" that is given as a "function pointer". This method
 	// connects to an outgoing stream of messages at the underlying transport
@@ -38,11 +49,15 @@ type TransportInterface interface {
 	Disconnect()
 }
 
-// Type for implementing a Source module
+// Type for implementing a Source module. A source module performs some task
+// and outputs the results as a Message to downstream modules.
 type Source func(output chan<- *Message)
 
-// Type for implementing a Sink module
+// Type for implementing a Sink module. A sink modules is a module that receives
+// messages from upstream modules and processes them.
 type Sink func(input <-chan *Message)
 
-// Type for implementing a Processor module
+// Type for implementing a Processor module. A processor modules receives messages
+// from upstream modules, processes them, and outputs the result to the downstream
+// modules.
 type Processor func(input <-chan *Message, output chan<- *Message)

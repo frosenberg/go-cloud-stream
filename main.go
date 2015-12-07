@@ -3,8 +3,11 @@ package main
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/frosenberg/go-cloud-stream/api"
+	//	"github.com/frosenberg/go-cloud-stream/stream"
+	//	"sync"
 	"github.com/frosenberg/go-cloud-stream/stream"
 	"sync"
+	"testing"
 )
 
 func dummySource(ch chan<- *api.Message) {
