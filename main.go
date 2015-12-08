@@ -7,7 +7,6 @@ import (
 	//	"sync"
 	"github.com/frosenberg/go-cloud-stream/stream"
 	"sync"
-	"testing"
 )
 
 func dummySource(ch chan<- *api.Message) {
