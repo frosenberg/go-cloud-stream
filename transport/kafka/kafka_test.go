@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	senderChan            chan string = nil
-	receiverChan          chan string = nil
-	receiverChan2         chan string = nil
-	bridgeChan            chan string = nil
-	pubsubReceivingChan   chan bool   = nil
-	pubsubStopSendingChan chan bool   = nil
+	senderChan            chan string
+	receiverChan          chan string
+	receiverChan2         chan string
+	bridgeChan            chan string
+	pubsubReceivingChan   chan bool
+	pubsubStopSendingChan chan bool
 	maxMessages                       = 50
 )
 
@@ -27,7 +27,7 @@ func init() {
 }
 
 func TestNewKafkaTransportEmpty0(t *testing.T) {
-	transport := NewKafkaTransport(nil, nil, "", "")
+	transport := NewTransport(nil, nil, "", "")
 
 	if len(transport.Brokers) == 0 ||
 		transport.Brokers[0] != "localhost:9092" {
@@ -52,7 +52,7 @@ func TestNewKafkaTransportEmpty0(t *testing.T) {
 }
 
 func TestNewKafkaTransport(t *testing.T) {
-	transport := NewKafkaTransport([]string{"localhost:9092", "localhost:9093"}, []string{"localhost:2181", "localhost:2182"}, "topic:foo", "queue:bar")
+	transport := NewTransport([]string{"localhost:9092", "localhost:9093"}, []string{"localhost:2181", "localhost:2182"}, "topic:foo", "queue:bar")
 
 	if len(transport.Brokers) != 2 &&
 		transport.Brokers[0] != "localhost:9092" &&
@@ -71,7 +71,7 @@ func TestNewKafkaTransport(t *testing.T) {
 		t.Fatal("Expected input semantic to be 'TopicSemantic'")
 	}
 	if transport.OutputBinding != "bar" {
-		t.Fatal("Expected output binding to be 'bar'. Got: %s", transport.OutputBinding)
+		t.Fatalf("Expected output binding to be 'bar'. Got: %s", transport.OutputBinding)
 	}
 	if transport.OutputSemantic != api.QueueSemantic {
 		t.Fatal("Expected output semantic to be 'QueueSemantic'")
@@ -91,7 +91,7 @@ func TestNewKafkaTransport(t *testing.T) {
 
 func TestConnecting(t *testing.T) {
 	broker := "localhost:9092"
-	transport := NewKafkaTransport([]string{broker}, getZookeeperHosts(), "", "")
+	transport := NewTransport([]string{broker}, getZookeeperHosts(), "", "")
 
 	if err := transport.Connect(); err != nil {
 		t.Fatalf("Expected connection to '%s' to succeeed", broker)
@@ -107,7 +107,7 @@ func TestSendReceiveQueueSemantics(t *testing.T) {
 	queueName := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
 
 	// init and connect to transport
-	transport := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), queueName, queueName)
+	transport := NewTransport(getKafkaBrokers(), getZookeeperHosts(), queueName, queueName)
 	transport.Connect()
 	defer transport.Disconnect()
 
@@ -164,19 +164,19 @@ func TestSendReceiveQueueSemantics2(t *testing.T) {
 
 	inputQueue0 := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
 	outputQueue0 := fmt.Sprintf("queue:output0-%d", time.Now().UnixNano())
-	t1 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue0, outputQueue0)
+	t1 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue0, outputQueue0)
 	t1.Connect()
 	defer t1.Disconnect()
 
 	inputQueue1 := outputQueue0
 	outputQueue1 := fmt.Sprintf("queue:output1-%d", time.Now().UnixNano())
-	t2 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue1, outputQueue1)
+	t2 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue1, outputQueue1)
 	t2.Connect()
 	defer t2.Disconnect()
 
 	inputQueue2 := outputQueue1
 	outputQueue2 := fmt.Sprintf("queue:output2-%d", time.Now().UnixNano())
-	t3 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue2, outputQueue2)
+	t3 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputQueue2, outputQueue2)
 	t3.Connect()
 	defer t3.Disconnect()
 
@@ -227,7 +227,7 @@ func TestSendReceiveTopicSemantics(t *testing.T) {
 	queueName := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
 
 	// init and connect to transport
-	transport := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), queueName, queueName)
+	transport := NewTransport(getKafkaBrokers(), getZookeeperHosts(), queueName, queueName)
 	transport.Connect()
 	defer transport.Disconnect()
 
@@ -313,19 +313,19 @@ func TestSendReceiveTopicSemantics2(t *testing.T) {
 
 	inputTopic0 := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
 	outputTopic0 := fmt.Sprintf("topic:output0-%d", time.Now().UnixNano())
-	t1 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic0, outputTopic0)
+	t1 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic0, outputTopic0)
 	t1.Connect()
 	defer t1.Disconnect()
 
 	inputTopic1 := outputTopic0
 	outputTopic1 := fmt.Sprintf("topic:output1-%d", time.Now().UnixNano())
-	t2 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic1, outputTopic1)
+	t2 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic1, outputTopic1)
 	t2.Connect()
 	defer t2.Disconnect()
 
 	inputTopic2 := outputTopic1
 	outputTopic2 := fmt.Sprintf("topic:output2-%d", time.Now().UnixNano())
-	t3 := NewKafkaTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic2, outputTopic2)
+	t3 := NewTransport(getKafkaBrokers(), getZookeeperHosts(), inputTopic2, outputTopic2)
 	t3.Connect()
 	defer t3.Disconnect()
 
@@ -424,12 +424,12 @@ func TestSendReceiveTopicSemantics2(t *testing.T) {
 //
 
 type logEntry struct {
-	Id           int     `json:"id"`
+	ID           int     `json:"id"`
 	Host         string  `json:"host"`
 	ResponseTime float64 `json:"response_time"`
 
-	encoded []byte
-	err     error
+	encoded      []byte
+	err          error
 }
 
 func pubsubSource(output chan<- *api.Message) {
@@ -496,7 +496,7 @@ func countingSource(output chan<- *api.Message) {
 
 	for i := 0; i < maxMessages; i++ {
 		entry := &logEntry{
-			Id:           i,
+			ID:           i,
 			Host:         fmt.Sprintf("myhostname-%d", i%10),
 			ResponseTime: rand.Float64(),
 		}
@@ -569,9 +569,8 @@ func getKafkaBrokers() []string {
 	brokers := os.Getenv("KAFKA_BROKERS")
 	if brokers != "" {
 		return strings.Split(brokers, ",")
-	} else {
-		log.Debug("ENV variable KAFKA_BROKERS not set. Using localhost:9092 as kafka broker host.")
 	}
+	log.Debug("ENV variable KAFKA_BROKERS not set. Using localhost:9092 as kafka broker host.")
 	return nil
 }
 
@@ -579,9 +578,8 @@ func getZookeeperHosts() []string {
 	zkHosts := os.Getenv("ZK_HOSTS")
 	if zkHosts != "" {
 		return strings.Split(zkHosts, ",")
-	} else {
-		log.Debug("ENV variable ZK_HOSTS not set. Using localhost:2181 as Zookeeper host.")
 	}
+	log.Debug("ENV variable ZK_HOSTS not set. Using localhost:2181 as Zookeeper host.")
 	return nil
 }
 

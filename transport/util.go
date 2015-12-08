@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// GetBindingSemantic returns the api.BindingSemantic for the
+// binding string.
 func GetBindingSemantic(binding string) api.BindingSemantic {
 	if IsTopicPrefix(binding) {
 		return api.TopicSemantic
@@ -14,15 +16,19 @@ func GetBindingSemantic(binding string) api.BindingSemantic {
 	return api.QueueSemantic
 }
 
+// IsTopicPrefix checks if the given string is the prefix
+// for the topic semantic.
 func IsTopicPrefix(binding string) bool {
 	return strings.HasPrefix(binding, "topic:")
 }
 
+// IsQueuePrefix checks if the given string is the prefix
+// for the queue semantic.
 func IsQueuePrefix(binding string) bool {
 	return strings.HasPrefix(binding, "queue:")
 }
 
-// Set the prefix of a binding correctly as it is
+// Prefix set the prefix of a binding correctly as it is
 // expected by the underlying Redis transport.
 func Prefix(binding string) string {
 	if IsTopicPrefix(binding) {
@@ -30,13 +36,12 @@ func Prefix(binding string) string {
 	}
 	if IsQueuePrefix(binding) {
 		return strings.Replace(binding, "queue:", "queue.", 1)
-	} else {
-		return fmt.Sprintf("queue.%s", binding)
 	}
+	return fmt.Sprintf("queue.%s", binding)
 }
 
-// Strips off the prefix entirely in case of "topic" or "queue". If the prefix cannot be foun
-// the original string is returned.
+// StripPrefix strips off the prefix entirely in case of "topic" or "queue".
+// If the prefix cannot be found the original string is returned.
 func StripPrefix(binding string) string {
 	if IsTopicPrefix(binding) {
 		return binding[6:]
@@ -47,7 +52,8 @@ func StripPrefix(binding string) string {
 	return binding
 }
 
-// Allowed chars are ASCII alphanumerics, '.', '_' and '-'. '_' is used as escaped char in the form '_xx' where xx
+// EscapeTopicName escapes the name of the topic. allowed chars are ASCII
+// alphanumerics, '.', '_' and '-'. '_' is used as escaped char in the form '_xx' where xx
 // is the hexadecimal value of the byte(s) needed to represent an illegal char in utf8.
 //
 // Source : https://github.com/spring-cloud/spring-cloud-stream/blob/master/spring-cloud-stream-binders/spring-cloud-stream-binder-kafka/src/main/java/org/springframework/cloud/stream/binder/kafka/KafkaMessageChannelBinder.java#L401

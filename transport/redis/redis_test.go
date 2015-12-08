@@ -24,7 +24,7 @@ func init() {
 }
 
 func TestNewRedisTransportEmpty0(t *testing.T) {
-	r := NewRedisTransport(":6379", "", "", "")
+	r := NewTransport(":6379", "", "", "")
 
 	if r.Address != "localhost:6379" {
 		t.Fatalf("Unexpected redis address: %s", r.Address)
@@ -32,7 +32,7 @@ func TestNewRedisTransportEmpty0(t *testing.T) {
 }
 
 func TestNewRedisTransportEmpty1(t *testing.T) {
-	r := NewRedisTransport("localhost", "", "", "")
+	r := NewTransport("localhost", "", "", "")
 
 	if r.Address != "localhost:6379" {
 		t.Fatalf("Unexpected redis address: %s", r.Address)
@@ -40,7 +40,7 @@ func TestNewRedisTransportEmpty1(t *testing.T) {
 }
 
 func TestNewRedisTransportEmpty2(t *testing.T) {
-	r := NewRedisTransport("", "mymaster", "", "")
+	r := NewTransport("", "mymaster", "", "")
 
 	if r.Address != "localhost:6379" {
 		t.Fatalf("Unexpected redis address: %s", r.Address)
@@ -57,7 +57,7 @@ func TestNewRedisTransportEmpty2(t *testing.T) {
 }
 
 func TestNewRedisTransportQueue(t *testing.T) {
-	r := NewRedisTransport("", "", "queue:foo", "queue:bar")
+	r := NewTransport("", "", "queue:foo", "queue:bar")
 
 	if r.InputBinding != "queue.foo" {
 		t.Fatalf("Unexpected input binding: %s", r.InputBinding)
@@ -68,7 +68,7 @@ func TestNewRedisTransportQueue(t *testing.T) {
 }
 
 func TestNewRedisTransportTopic(t *testing.T) {
-	r := NewRedisTransport("", "", "topic:foo", "topic:bar")
+	r := NewTransport("", "", "topic:foo", "topic:bar")
 
 	if r.InputBinding != "topic.foo" {
 		t.Fatalf("Unexpected input binding: %s", r.InputBinding)
@@ -79,7 +79,7 @@ func TestNewRedisTransportTopic(t *testing.T) {
 }
 
 func TestConnectToNotExistingRedis(t *testing.T) {
-	redis := NewRedisTransport("doesnotexist:6379", "", "input", "ouput")
+	redis := NewTransport("doesnotexist:6379", "", "input", "ouput")
 	err := redis.Connect()
 	if err == nil { // expect an error
 		log.Debugln("Error: ", err)
@@ -88,7 +88,7 @@ func TestConnectToNotExistingRedis(t *testing.T) {
 }
 
 func TestConnectToExistingSingleRedis(t *testing.T) {
-	redis := NewRedisTransport(getRedisHost(), "", "input", "ouput")
+	redis := NewTransport(getRedisHost(), "", "input", "ouput")
 	err := redis.Connect()
 	if err != nil {
 		t.Fatal("Expected connection not established.")
@@ -97,7 +97,7 @@ func TestConnectToExistingSingleRedis(t *testing.T) {
 }
 
 func TestConnectToExistingSentinelRedis(t *testing.T) {
-	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), "input", "ouput")
+	redis := NewTransport(getRedisSentinelHost(), getRedisMaster(), "input", "ouput")
 	err := redis.Connect()
 	if err != nil {
 		t.Fatal("Expected connection not established.")
@@ -106,13 +106,13 @@ func TestConnectToExistingSentinelRedis(t *testing.T) {
 }
 
 func TestDisconnectWithoutConnecting(t *testing.T) {
-	redis := NewRedisTransport(getRedisHost(), "", "input", "ouput")
+	redis := NewTransport(getRedisHost(), "", "input", "ouput")
 	redis.Disconnect() // should not fail
 }
 
 func TestSendingAndReceiveWithQueueSingleHost(t *testing.T) {
 	queueName := fmt.Sprintf("queue:test-%d", time.Now().UnixNano())
-	redis := NewRedisTransport(getRedisHost(), "", queueName, queueName)
+	redis := NewTransport(getRedisHost(), "", queueName, queueName)
 
 	redis.Connect()
 	log.Debugf("TestSendingAndReceiveWithQueueSingleHost.queueName: %s", queueName)
@@ -123,7 +123,7 @@ func TestSendingAndReceiveWithQueueSingleHost(t *testing.T) {
 
 func TestSendingAndReceiveWithQueueSentinel(t *testing.T) {
 	queueName := fmt.Sprintf("queue:test-%d", time.Now().UnixNano())
-	redis := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), queueName, queueName)
+	redis := NewTransport(getRedisSentinelHost(), getRedisMaster(), queueName, queueName)
 
 	redis.Connect()
 	log.Debugf("TestSendingAndReceiveWithQueueSingleHost.queueName: %s", queueName)
@@ -136,19 +136,19 @@ func TestProcessorWithQueueSingleHost(t *testing.T) {
 
 	inputQueue0 := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
 	outputQueue0 := fmt.Sprintf("queue:output0-%d", time.Now().UnixNano())
-	r1 := NewRedisTransport(getRedisHost(), "", inputQueue0, outputQueue0)
+	r1 := NewTransport(getRedisHost(), "", inputQueue0, outputQueue0)
 	r1.Connect()
 	defer r1.Disconnect()
 
 	inputQueue1 := outputQueue0
 	outputQueue1 := fmt.Sprintf("queue:output1-%d", time.Now().UnixNano())
-	r2 := NewRedisTransport(getRedisHost(), "", inputQueue1, outputQueue1)
+	r2 := NewTransport(getRedisHost(), "", inputQueue1, outputQueue1)
 	r2.Connect()
 	defer r2.Disconnect()
 
 	inputQueue2 := outputQueue1
 	outputQueue2 := fmt.Sprintf("queue:output2-%d", time.Now().UnixNano())
-	r3 := NewRedisTransport(getRedisHost(), "", inputQueue2, outputQueue2)
+	r3 := NewTransport(getRedisHost(), "", inputQueue2, outputQueue2)
 	r3.Connect()
 	defer r3.Disconnect()
 
@@ -160,19 +160,19 @@ func TestProcessorWithQueueSentinelHost(t *testing.T) {
 
 	inputQueue0 := fmt.Sprintf("queue:input0-%d", time.Now().UnixNano())
 	outputQueue0 := fmt.Sprintf("queue:output0-%d", time.Now().UnixNano())
-	r1 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue0, outputQueue0)
+	r1 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue0, outputQueue0)
 	r1.Connect()
 	defer r1.Disconnect()
 
 	inputQueue1 := outputQueue0
 	outputQueue1 := fmt.Sprintf("queue:output1-%d", time.Now().UnixNano())
-	r2 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue1, outputQueue1)
+	r2 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue1, outputQueue1)
 	r2.Connect()
 	defer r2.Disconnect()
 
 	inputQueue2 := outputQueue1
 	outputQueue2 := fmt.Sprintf("queue:output2-%d", time.Now().UnixNano())
-	r3 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue2, outputQueue2)
+	r3 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputQueue2, outputQueue2)
 	r3.Connect()
 	defer r3.Disconnect()
 
@@ -184,19 +184,19 @@ func TestProcessorWithTopicOnSingleHost(t *testing.T) {
 
 	inputTopic0 := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
 	outputTopic0 := fmt.Sprintf("topic:output0-%d", time.Now().UnixNano())
-	r1 := NewRedisTransport(getRedisHost(), "", inputTopic0, outputTopic0)
+	r1 := NewTransport(getRedisHost(), "", inputTopic0, outputTopic0)
 	r1.Connect()
 	defer r1.Disconnect()
 
 	inputTopic1 := outputTopic0
 	outputTopic1 := fmt.Sprintf("topic:output1-%d", time.Now().UnixNano())
-	r2 := NewRedisTransport(getRedisHost(), "", inputTopic1, outputTopic1)
+	r2 := NewTransport(getRedisHost(), "", inputTopic1, outputTopic1)
 	r2.Connect()
 	defer r2.Disconnect()
 
 	inputTopic2 := outputTopic1
 	outputTopic2 := fmt.Sprintf("topic:output2-%d", time.Now().UnixNano())
-	r3 := NewRedisTransport(getRedisHost(), "", inputTopic2, outputTopic2)
+	r3 := NewTransport(getRedisHost(), "", inputTopic2, outputTopic2)
 	r3.Connect()
 	defer r3.Disconnect()
 
@@ -207,19 +207,19 @@ func TestProcessorWithTopicOnSentinelHost(t *testing.T) {
 
 	inputTopic0 := fmt.Sprintf("topic:input0-%d", time.Now().UnixNano())
 	outputTopic0 := fmt.Sprintf("topic:output0-%d", time.Now().UnixNano())
-	r1 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic0, outputTopic0)
+	r1 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic0, outputTopic0)
 	r1.Connect()
 	defer r1.Disconnect()
 
 	inputTopic1 := outputTopic0
 	outputTopic1 := fmt.Sprintf("topic:output1-%d", time.Now().UnixNano())
-	r2 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic1, outputTopic1)
+	r2 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic1, outputTopic1)
 	r2.Connect()
 	defer r2.Disconnect()
 
 	inputTopic2 := outputTopic1
 	outputTopic2 := fmt.Sprintf("topic:output2-%d", time.Now().UnixNano())
-	r3 := NewRedisTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic2, outputTopic2)
+	r3 := NewTransport(getRedisSentinelHost(), getRedisMaster(), inputTopic2, outputTopic2)
 	r3.Connect()
 	defer r3.Disconnect()
 
@@ -257,7 +257,7 @@ func bridgeFunc(input <-chan *api.Message, output chan<- *api.Message) {
 	bridgeChan <- "bridgeChan"
 }
 
-func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTransport, r3 *RedisTransport) {
+func processorWithQueueInternal(t *testing.T, r1 *Transport, r2 *Transport, r3 *Transport) {
 
 	go func() {
 		r1.RunSource(countingSource)
@@ -296,7 +296,7 @@ func processorWithQueueInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	}
 }
 
-func processorWithTopicInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTransport, r3 *RedisTransport) {
+func processorWithTopicInternal(t *testing.T, r1 *Transport, r2 *Transport, r3 *Transport) {
 
 	go func() {
 		r2.RunProcessor(bridgeFunc)
@@ -336,7 +336,7 @@ func processorWithTopicInternal(t *testing.T, r1 *RedisTransport, r2 *RedisTrans
 	}
 }
 
-func sendAndReceiveWithQueueInternal(t *testing.T, redis *RedisTransport) {
+func sendAndReceiveWithQueueInternal(t *testing.T, redis *Transport) {
 
 	// sender
 	go func() {

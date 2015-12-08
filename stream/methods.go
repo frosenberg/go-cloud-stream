@@ -48,11 +48,11 @@ func getTransport() api.TransportInterface {
 	if transport == nil {
 
 		if *kafkaBrokers != "" {
-			transport = kafka.NewKafkaTransport(strings.Split(*kafkaBrokers, ","), strings.Split(*zkNodes, ","), *inputBinding, *outputBinding)
+			transport = kafka.NewTransport(strings.Split(*kafkaBrokers, ","), strings.Split(*zkNodes, ","), *inputBinding, *outputBinding)
 		} else if *redisSentinelNodes != "" {
-			transport = redis.NewRedisTransport(*redisSentinelNodes, *redisSentinelMaster, *inputBinding, *outputBinding)
+			transport = redis.NewTransport(*redisSentinelNodes, *redisSentinelMaster, *inputBinding, *outputBinding)
 		} else if *redisAddress != "" {
-			transport = redis.NewRedisTransport(*redisAddress, *redisSentinelMaster, *inputBinding, *outputBinding)
+			transport = redis.NewTransport(*redisAddress, *redisSentinelMaster, *inputBinding, *outputBinding)
 		}
 	}
 	return transport.(api.TransportInterface)

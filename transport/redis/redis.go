@@ -15,7 +15,7 @@ import (
 //
 // Basic Redis transport information
 //
-type RedisTransport struct {
+type Transport struct {
 	api.Transport
 	Address        string
 	SentinelMaster string
@@ -29,9 +29,9 @@ type RedisTransport struct {
 	sentinelClient *sentinel.Client
 }
 
-// Creates a new RedisTransport instance with sensible default values.
+// NewTransport creates a new Redis-based transport instance with sensible default values.
 // Either address or sentinel address (and also set sentinelMaster) has to be set.
-func NewRedisTransport(address string, sentinelMaster string, inputBinding string, outputBinding string) *RedisTransport {
+func NewTransport(address string, sentinelMaster string, inputBinding string, outputBinding string) *Transport {
 
 	// set some reasonable defaults
 	if address == "" || address == ":6379" {
@@ -51,7 +51,7 @@ func NewRedisTransport(address string, sentinelMaster string, inputBinding strin
 		outputBinding = "output"
 	}
 
-	transport := &RedisTransport{
+	transport := &Transport{
 		Transport: api.Transport{
 			InputBinding:   transport.Prefix(inputBinding),
 			InputSemantic:  transport.GetBindingSemantic(inputBinding),
@@ -66,7 +66,7 @@ func NewRedisTransport(address string, sentinelMaster string, inputBinding strin
 	return transport
 }
 
-func (t *RedisTransport) Connect() error {
+func (t *Transport) Connect() error {
 
 	// TODO add retries in case of failures
 
@@ -105,7 +105,7 @@ func (t *RedisTransport) Connect() error {
 	return nil
 }
 
-func (t *RedisTransport) RunSource(sourceFunc api.Source) {
+func (t *Transport) RunSource(sourceFunc api.Source) {
 	log.Debugf("RunSource called ...")
 
 	channel := make(chan *api.Message)
@@ -119,7 +119,7 @@ func (t *RedisTransport) RunSource(sourceFunc api.Source) {
 	sourceFunc(channel)
 }
 
-func (t *RedisTransport) RunSink(sinkFunc api.Sink) {
+func (t *Transport) RunSink(sinkFunc api.Sink) {
 
 	channel := make(chan *api.Message)
 
@@ -132,7 +132,7 @@ func (t *RedisTransport) RunSink(sinkFunc api.Sink) {
 	sinkFunc(channel)
 }
 
-func (t *RedisTransport) RunProcessor(processorFunc api.Processor) {
+func (t *Transport) RunProcessor(processorFunc api.Processor) {
 
 	inputCh := make(chan *api.Message)
 	outputCh := make(chan *api.Message)
@@ -153,13 +153,13 @@ func (t *RedisTransport) RunProcessor(processorFunc api.Processor) {
 
 // Disconnects from the Redis transport. It does not fai
 // if you are not connected.
-func (t *RedisTransport) Disconnect() {
+func (t *Transport) Disconnect() {
 	log.Debugln("Disconnecting from Redis: ", t.Address)
 
 	// nothing to do for now
 }
 
-func (t *RedisTransport) publish(channel chan *api.Message) {
+func (t *Transport) publish(channel chan *api.Message) {
 	conn, _ := t.getConnection()
 	defer conn.Close()
 
@@ -174,7 +174,7 @@ func (t *RedisTransport) publish(channel chan *api.Message) {
 	}
 }
 
-func (t *RedisTransport) subscribe(channel chan *api.Message) {
+func (t *Transport) subscribe(channel chan *api.Message) {
 	conn, _ := t.getConnection() // todo handle messages better
 	defer conn.Close()
 
@@ -195,7 +195,7 @@ func (t *RedisTransport) subscribe(channel chan *api.Message) {
 	}
 }
 
-func (t *RedisTransport) push(channel <-chan *api.Message) {
+func (t *Transport) push(channel <-chan *api.Message) {
 	conn, _ := t.getConnection()
 	defer conn.Close()
 
@@ -210,7 +210,7 @@ func (t *RedisTransport) push(channel <-chan *api.Message) {
 	}
 }
 
-func (t *RedisTransport) pop(channel chan *api.Message) {
+func (t *Transport) pop(channel chan *api.Message) {
 	conn, _ := t.getConnection()
 	defer conn.Close()
 
@@ -226,7 +226,7 @@ func (t *RedisTransport) pop(channel chan *api.Message) {
 
 // Pings redis to check whether the connection works. A connectTo...() methods needs
 // to be called before.
-func (t *RedisTransport) pingRedis(client *redis.Client) error {
+func (t *Transport) pingRedis(client *redis.Client) error {
 
 	resp := client.Cmd("PING")
 	if resp.Err != nil {
@@ -238,7 +238,7 @@ func (t *RedisTransport) pingRedis(client *redis.Client) error {
 	return nil
 }
 
-func (t *RedisTransport) getConnection() (*redis.Client, error) {
+func (t *Transport) getConnection() (*redis.Client, error) {
 	if t.isSentinel() {
 
 		conn, err := t.sentinelClient.GetMaster(t.SentinelMaster)
@@ -246,26 +246,30 @@ func (t *RedisTransport) getConnection() (*redis.Client, error) {
 			return nil, err
 		}
 		defer t.sentinelClient.PutMaster(t.SentinelMaster, conn)
-		return conn, nil
-
-	} else {
-
-		conn, err := t.pool.Get()
-		defer t.pool.Put(conn)
-
-		if err != nil {
-			return nil, err
-		}
 
 		t.pingRedis(conn)
+
 		return conn, nil
+
 	}
+
+	// non-sentinel
+
+	conn, err := t.pool.Get()
+	defer t.pool.Put(conn)
+
+	if err != nil {
+		return nil, err
+	}
+
+	t.pingRedis(conn)
+	return conn, nil
 }
 
-func (t *RedisTransport) isSentinel() bool {
+func (t *Transport) isSentinel() bool {
 	return t.SentinelMaster != ""
 }
 
-func (t *RedisTransport) isSingleRedis() bool {
+func (t *Transport) isSingleRedis() bool {
 	return t.SentinelMaster == ""
 }

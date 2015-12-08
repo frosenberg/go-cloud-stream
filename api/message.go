@@ -41,7 +41,7 @@ func NewTextMessage(content []byte) *Message {
 //
 // Creates a new Message instance with a given http request.
 //
-func NewMessageFromHttpRequest(r *http.Request) *Message {
+func NewMessageFromHTTPRequest(r *http.Request) *Message {
 	ct := r.Header.Get("Content-Type")
 	if ct == "" {
 		ct = r.Header.Get("content-type")
@@ -122,18 +122,18 @@ func (m *Message) ToRawByteArray() []byte {
 	preamble[0] = 0xff                 // signature
 	preamble[1] = byte(len(m.Headers)) // number of headers
 
-	payload := make([]byte, 0)
+	var payload []byte
 
 	// sort map to ensure we generate headers in order
 	var keys []string
-	for k, _ := range m.Headers {
+	for k := range m.Headers {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
 	// [lenHdr(1), hdr, lenValue(4), value]
 	for _, k := range keys {
-		header := make([]byte, 0)
+		var header []byte
 
 		// append length of the header name
 		header = append(header, byte(len(k)))

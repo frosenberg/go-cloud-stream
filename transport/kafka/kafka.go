@@ -7,14 +7,13 @@ import (
 	"github.com/frosenberg/go-cloud-stream/transport"
 	"github.com/pborman/uuid"
 	kafkaClient "github.com/stealthly/go_kafka_client"
-	"sort"
 	"time"
 )
 
 //
 // Basic Kafka transport information
 //
-type KafkaTransport struct {
+type Transport struct {
 	api.Transport
 	Brokers                   []string
 	ZookeeperHosts            []string
@@ -27,7 +26,7 @@ type KafkaTransport struct {
 }
 
 // Creates a new KafkaTransport instance with sensible default values.
-func NewKafkaTransport(brokers []string, zkHosts []string, inputBinding string, outputBinding string) *KafkaTransport {
+func NewTransport(brokers []string, zkHosts []string, inputBinding string, outputBinding string) *Transport {
 	if len(brokers) == 0 {
 		brokers = make([]string, 1)
 		brokers[0] = "localhost:9092"
@@ -45,7 +44,7 @@ func NewKafkaTransport(brokers []string, zkHosts []string, inputBinding string, 
 		outputBinding = "output"
 	}
 
-	transport := &KafkaTransport{
+	transport := &Transport{
 		Transport: api.Transport{
 			InputBinding:   transport.EscapeTopicName(transport.StripPrefix(inputBinding)),
 			InputSemantic:  transport.GetBindingSemantic(inputBinding),
@@ -60,7 +59,7 @@ func NewKafkaTransport(brokers []string, zkHosts []string, inputBinding string, 
 	return transport
 }
 
-func (t *KafkaTransport) Connect() error {
+func (t *Transport) Connect() error {
 
 	config := sarama.NewConfig()
 	config.Producer.Compression = sarama.CompressionSnappy
@@ -92,7 +91,7 @@ func (t *KafkaTransport) Connect() error {
 	return nil
 }
 
-func (t *KafkaTransport) Disconnect() {
+func (t *Transport) Disconnect() {
 	if t.client != nil {
 		warnClosing(t.client.Close())
 	}
@@ -101,7 +100,7 @@ func (t *KafkaTransport) Disconnect() {
 	}
 }
 
-func (t *KafkaTransport) RunSource(sourceFunc api.Source) {
+func (t *Transport) RunSource(sourceFunc api.Source) {
 	log.Debugf("RunSource called ...")
 
 	channel := make(chan *api.Message)
@@ -115,7 +114,7 @@ func (t *KafkaTransport) RunSource(sourceFunc api.Source) {
 	sourceFunc(channel)
 }
 
-func (t *KafkaTransport) RunSink(sinkFunc api.Sink) {
+func (t *Transport) RunSink(sinkFunc api.Sink) {
 
 	channel := make(chan *api.Message)
 
@@ -128,7 +127,7 @@ func (t *KafkaTransport) RunSink(sinkFunc api.Sink) {
 	sinkFunc(channel)
 }
 
-func (t *KafkaTransport) RunProcessor(processorFunc api.Processor) {
+func (t *Transport) RunProcessor(processorFunc api.Processor) {
 
 	inputCh := make(chan *api.Message)
 	outputCh := make(chan *api.Message)
@@ -147,7 +146,7 @@ func (t *KafkaTransport) RunProcessor(processorFunc api.Processor) {
 	processorFunc(inputCh, outputCh)
 }
 
-func (t *KafkaTransport) push(channel chan *api.Message) {
+func (t *Transport) push(channel chan *api.Message) {
 
 	// TODO add support for creating a topic (port kafka.AdminUtils)
 
@@ -160,7 +159,7 @@ func (t *KafkaTransport) push(channel chan *api.Message) {
 	}
 }
 
-func (t *KafkaTransport) pop(channel chan *api.Message) {
+func (t *Transport) pop(channel chan *api.Message) {
 
 	// use same group for all consumers -> queue semantics
 
@@ -170,11 +169,11 @@ func (t *KafkaTransport) pop(channel chan *api.Message) {
 	startNewConsumer(t.consumerConfig, t.InputBinding, channel)
 }
 
-func (t *KafkaTransport) publish(channel chan *api.Message) {
+func (t *Transport) publish(channel chan *api.Message) {
 	t.push(channel) // sending semantics is the same for now
 }
 
-func (t *KafkaTransport) subscribe(channel chan *api.Message) {
+func (t *Transport) subscribe(channel chan *api.Message) {
 
 	// usage of a different consumer group each time achieves pub-sub
 	// but multiple instances of this binding will each get all messages
@@ -230,24 +229,13 @@ func waitForTopicToBeReady(config kafkaClient.ConsumerConfig, topic string) {
 	config.Coordinator.Connect()
 
 	go func() {
-		allTopics := []string(nil)
-		inputId := -1
-
-		// TODO remove check for get all topics - just ask for paritions seems to be better
 		for {
-			allTopics, _ = config.Coordinator.GetAllTopics()
-			sort.Strings(allTopics)
-			inputId = sort.SearchStrings(allTopics, topic)
-			if inputId < len(allTopics) {
-
-				// seems to be a good indicator for when the optic is available. Just
-				// checking for the node is not enough
-				_, err := config.Coordinator.GetPartitionsForTopics([]string{topic})
-
-				if err == nil {
-					result <- true
-					break
-				}
+			// seems to be a good indicator for when the optic is available. Just
+			// checking for the node is not enough
+			_, err := config.Coordinator.GetPartitionsForTopics([]string{topic})
+			if err == nil {
+				result <- true
+				break
 			}
 			time.Sleep(250 * time.Millisecond)
 		}
